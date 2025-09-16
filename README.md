@@ -1,17 +1,5 @@
 # Volume Project JSON Compiler
 
-<div align="center">
-  <img src="docs/app-preview.png" alt="Volume Project JSON Compiler Preview" width="800" />
-  <br><br>
-  <img src="https://img.shields.io/npm/v/volume-project" alt="NPM Version" />
-  <img src="https://img.shields.io/github/license/devasudanT/volume-project" alt="License" />
-  <img src="https://img.shields.io/github/issues/devasudanT/volume-project" alt="Issues" />
-  <img src="https://img.shields.io/github/stars/devasudanT/volume-project" alt="Stars" />
-  <img src="https://img.shields.io/github/last-commit/devasudanT/volume-project" alt="Last Commit" />
-  <br><br>
-  <strong>Live Demo:</strong> <a href="https://v.foodfornewcreature.com/">https://v.foodfornewcreature.com/</a>
-</div>
-
 ## 📚 Overview
 
 Volume Project JSON Compiler is a modern web application built with Next.js and Firebase that provides comprehensive tools for compiling and managing JSON snippets. The application offers an intuitive interface for developers to create, compile, and organize various types of content structures including chapters, headings, poems, images, and more.
@@ -41,7 +29,7 @@ Volume Project JSON Compiler is a modern web application built with Next.js and 
 
 - **Frontend**: Next.js 14, React 18, TypeScript
 - **Styling**: Tailwind CSS
-- **Deployment**: Vercel
+- **Deployment**: Apache 2.4.4
 - **State Management**: React Hooks
 - **Build Tool**: Next.js App Router
 
@@ -152,6 +140,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgments
 
-- Built with Next.js 14 and Firebase
+- Built with Next.js 14
 - Styled with Tailwind CSS
-- Deployed on Vercel
