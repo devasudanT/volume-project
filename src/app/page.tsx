@@ -13,6 +13,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { Play, Download, Copy, Trash2, PlusCircle, XCircle, Combine, ListPlus, BookText, FileImage, FileText, Upload, Undo2 } from 'lucide-react';
 import { TamilPageNumberCompiler } from "@/components/tamil-page-number-compiler";
+import { TableCompiler } from "@/components/table-compiler";
 
 interface OldJsonEntry { // This interface might still be useful for understanding the structure of non-paragraph items
   type: string;
@@ -878,6 +879,9 @@ export default function JsonCompilerPage() {
 
           {/* Tamil Book Page Number Snippet Compiler Card */}
           <TamilPageNumberCompiler setJsonOutputs={setJsonOutputs} />
+
+          {/* Table JSON Snippet Compiler Card */}
+          <TableCompiler setJsonOutputs={setJsonOutputs} />
 
           {/* Poem Snippet Compiler Card */}
           <Card className="shadow-lg">
