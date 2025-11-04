@@ -20,7 +20,7 @@ export interface MergedCell {
 export interface VisualTableData {
   type: "table";
   id: string;
-  title: string;
+  title?: string;
   headers: string[];
   data: string[][];
   mergedCells?: MergedCell[];
@@ -40,6 +40,7 @@ export function TableCompiler({ setJsonOutputs }: TableCompilerProps) {
   const [columns, setColumns] = useState(3);
   const [tableId, setTableId] = useState('');
   const [tableTitle, setTableTitle] = useState('');
+  const [useTableTitle, setUseTableTitle] = useState(true);
   const [tableData, setTableData] = useState<string[][]>([]);
   const [editingCell, setEditingCell] = useState<{row: number, col: number} | null>(null);
   const [selectedCells, setSelectedCells] = useState<{row: number, col: number}[]>([]);
@@ -171,7 +172,7 @@ export function TableCompiler({ setJsonOutputs }: TableCompilerProps) {
     const generatedData: VisualTableData = {
       type: "table",
       id: tableId.trim(),
-      title: tableTitle.trim() || `Table ${tableId}`,
+      ...(useTableTitle && { title: tableTitle.trim() || `Table ${tableId}` }),
       headers: finalHeaders,
       data: filteredData,
       metadata: {
@@ -240,6 +241,7 @@ export function TableCompiler({ setJsonOutputs }: TableCompilerProps) {
   const handleClearTable = () => {
     setTableId('');
     setTableTitle('');
+    setUseTableTitle(true);
     setGeneratedTable(null);
     setEditingCell(null);
     setSelectedCells([]);
@@ -297,13 +299,24 @@ export function TableCompiler({ setJsonOutputs }: TableCompilerProps) {
             />
           </div>
           <div>
-            <Label htmlFor="table-title">Table Title</Label>
-            <Input
-              id="table-title"
-              placeholder="e.g., User Information"
-              value={tableTitle}
-              onChange={(e) => setTableTitle(e.target.value)}
-            />
+            <div className="flex items-center gap-2 mb-2">
+              <input
+                type="checkbox"
+                id="use-table-title"
+                checked={useTableTitle}
+                onChange={(e) => setUseTableTitle(e.target.checked)}
+                className="rounded"
+              />
+              <Label htmlFor="table-title" className="cursor-pointer">Table Title</Label>
+            </div>
+            {useTableTitle && (
+              <Input
+                id="table-title"
+                placeholder="e.g., User Information"
+                value={tableTitle}
+                onChange={(e) => setTableTitle(e.target.value)}
+              />
+            )}
           </div>
         </div>
 
@@ -439,7 +452,7 @@ export function TableCompiler({ setJsonOutputs }: TableCompilerProps) {
         {showPreview && tableId && (
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Preview: {tableTitle || `Table ${tableId}`}</CardTitle>
+              <CardTitle className="text-lg">Preview: {useTableTitle ? (tableTitle || `Table ${tableId}`) : `Table ${tableId}`}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">

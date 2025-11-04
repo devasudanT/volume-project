@@ -20,7 +20,7 @@ export interface MergedCell {
 export interface VisualTableData {
   type: "table";
   id: string;
-  title: string;
+  title?: string;
   headers: string[];
   data: string[][];
   mergedCells?: MergedCell[];
@@ -29,6 +29,23 @@ export interface VisualTableData {
     totalColumns: number;
     generatedAt: string;
   };
+}
+
+export interface TableStylingConfig {
+  textColor: string;
+  backgroundColor: string;
+  borderColor: string;
+  borderWidth: number;
+  headerBackgroundColor: string;
+  headerTextColor: string;
+  rowStriping: boolean;
+  stripeColor: string;
+  customTextColor: string;
+  customBackgroundColor: string;
+  customBorderColor: string;
+  customHeaderBackgroundColor: string;
+  customHeaderTextColor: string;
+  customStripeColor: string;
 }
 
 interface TableInterfaceProps {
@@ -40,6 +57,7 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
   const [columns, setColumns] = useState(3);
   const [tableId, setTableId] = useState('');
   const [tableTitle, setTableTitle] = useState('');
+  const [useTableTitle, setUseTableTitle] = useState(true);
   const [tableData, setTableData] = useState<string[][]>([]);
   const [editingCell, setEditingCell] = useState<{row: number, col: number} | null>(null);
   const [selectedCells, setSelectedCells] = useState<{row: number, col: number}[]>([]);
@@ -47,6 +65,22 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
   const [showPreview, setShowPreview] = useState(false);
   const [generatedTable, setGeneratedTable] = useState<VisualTableData | null>(null);
   const [tableCreated, setTableCreated] = useState(false);
+  const [tableStyling, setTableStyling] = useState<TableStylingConfig>({
+    textColor: 'text-foreground',
+    backgroundColor: 'bg-background',
+    borderColor: 'border-border',
+    borderWidth: 1,
+    headerBackgroundColor: 'bg-muted',
+    headerTextColor: 'text-foreground',
+    rowStriping: false,
+    stripeColor: 'bg-muted/50',
+    customTextColor: '#000000',
+    customBackgroundColor: '#ffffff',
+    customBorderColor: '#e5e5e5',
+    customHeaderBackgroundColor: '#f5f5f5',
+    customHeaderTextColor: '#000000',
+    customStripeColor: '#f0f0f0'
+  });
 
   const { toast } = useToast();
 
@@ -172,7 +206,7 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
     const generatedData: VisualTableData = {
       type: "table",
       id: tableId.trim(),
-      title: tableTitle.trim() || `Table ${tableId}`,
+      ...(useTableTitle && { title: tableTitle.trim() || `Table ${tableId}` }),
       headers: finalHeaders,
       data: filteredData,
       metadata: {
@@ -241,11 +275,17 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
   const handleClearTable = () => {
     setTableId('');
     setTableTitle('');
+    setUseTableTitle(true);
     setGeneratedTable(null);
     setEditingCell(null);
     setSelectedCells([]);
     setMergeMode(false);
     toast({ title: "Cleared", description: "Table data cleared." });
+  };
+
+  // Update table styling configuration
+  const updateTableStyling = (newStyling: Partial<TableStylingConfig>) => {
+    setTableStyling(prev => ({ ...prev, ...newStyling }));
   };
 
   return (
@@ -360,17 +400,294 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
               <p className="text-xs text-muted-foreground">Unique identifier for the table</p>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="table-title">Table Title</Label>
-              <Input
-                id="table-title"
-                placeholder="e.g., User Information"
-                value={tableTitle}
-                onChange={(e) => setTableTitle(e.target.value)}
-              />
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="use-table-title"
+                  checked={useTableTitle}
+                  onChange={(e) => setUseTableTitle(e.target.checked)}
+                  className="rounded"
+                />
+                <Label htmlFor="table-title" className="cursor-pointer">Table Title</Label>
+              </div>
+              {useTableTitle && (
+                <Input
+                  id="table-title"
+                  placeholder="e.g., User Information"
+                  value={tableTitle}
+                  onChange={(e) => setTableTitle(e.target.value)}
+                />
+              )}
               <p className="text-xs text-muted-foreground">Display title for the table</p>
             </div>
           </div>
         </div>
+
+        {/* Styling Controls */}
+        {tableCreated && (
+          <div className="bg-muted/50 rounded-lg p-4">
+            <h3 className="font-medium text-lg mb-3 flex items-center">
+              <span className="bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center text-xs mr-2">S</span>
+              Styling Options
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Text Color */}
+              <div className="space-y-2">
+                <Label htmlFor="text-color">Text Color</Label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    id="text-color"
+                    value={tableStyling.customTextColor}
+                    onChange={(e) => updateTableStyling({ customTextColor: e.target.value })}
+                    className="w-12 h-10 rounded-md border border-input cursor-pointer"
+                  />
+                  <Input
+                    type="text"
+                    value={tableStyling.customTextColor}
+                    onChange={(e) => updateTableStyling({ customTextColor: e.target.value })}
+                    className="flex-1"
+                    placeholder="#000000"
+                  />
+                </div>
+              </div>
+
+              {/* Background Color */}
+              <div className="space-y-2">
+                <Label htmlFor="bg-color">Background Color</Label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    id="bg-color"
+                    value={tableStyling.customBackgroundColor}
+                    onChange={(e) => updateTableStyling({ customBackgroundColor: e.target.value })}
+                    className="w-12 h-10 rounded-md border border-input cursor-pointer"
+                  />
+                  <Input
+                    type="text"
+                    value={tableStyling.customBackgroundColor}
+                    onChange={(e) => updateTableStyling({ customBackgroundColor: e.target.value })}
+                    className="flex-1"
+                    placeholder="#ffffff"
+                  />
+                </div>
+              </div>
+
+              {/* Border Color */}
+              <div className="space-y-2">
+                <Label htmlFor="border-color">Border Color</Label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    id="border-color"
+                    value={tableStyling.customBorderColor}
+                    onChange={(e) => updateTableStyling({ customBorderColor: e.target.value })}
+                    className="w-12 h-10 rounded-md border border-input cursor-pointer"
+                  />
+                  <Input
+                    type="text"
+                    value={tableStyling.customBorderColor}
+                    onChange={(e) => updateTableStyling({ customBorderColor: e.target.value })}
+                    className="flex-1"
+                    placeholder="#e5e5e5"
+                  />
+                </div>
+              </div>
+
+              {/* Border Width */}
+              <div className="space-y-2">
+                <Label htmlFor="border-width">Border Width</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="border-width"
+                    type="range"
+                    min="0"
+                    max="4"
+                    step="1"
+                    value={tableStyling.borderWidth}
+                    onChange={(e) => updateTableStyling({ borderWidth: parseInt(e.target.value) })}
+                    className="flex-1"
+                  />
+                  <span className="w-10 text-center">{tableStyling.borderWidth}px</span>
+                </div>
+              </div>
+
+              {/* Header Background */}
+              <div className="space-y-2">
+                <Label htmlFor="header-bg">Header Background</Label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    id="header-bg"
+                    value={tableStyling.customHeaderBackgroundColor}
+                    onChange={(e) => updateTableStyling({ customHeaderBackgroundColor: e.target.value })}
+                    className="w-12 h-10 rounded-md border border-input cursor-pointer"
+                  />
+                  <Input
+                    type="text"
+                    value={tableStyling.customHeaderBackgroundColor}
+                    onChange={(e) => updateTableStyling({ customHeaderBackgroundColor: e.target.value })}
+                    className="flex-1"
+                    placeholder="#f5f5f5"
+                  />
+                </div>
+              </div>
+
+              {/* Header Text Color */}
+              <div className="space-y-2">
+                <Label htmlFor="header-text">Header Text Color</Label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    id="header-text"
+                    value={tableStyling.customHeaderTextColor}
+                    onChange={(e) => updateTableStyling({ customHeaderTextColor: e.target.value })}
+                    className="w-12 h-10 rounded-md border border-input cursor-pointer"
+                  />
+                  <Input
+                    type="text"
+                    value={tableStyling.customHeaderTextColor}
+                    onChange={(e) => updateTableStyling({ customHeaderTextColor: e.target.value })}
+                    className="flex-1"
+                    placeholder="#000000"
+                  />
+                </div>
+              </div>
+
+              {/* Row Striping */}
+              <div className="space-y-2 md:col-span-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="row-striping"
+                    checked={tableStyling.rowStriping}
+                    onChange={(e) => updateTableStyling({ rowStriping: e.target.checked })}
+                    className="rounded"
+                  />
+                  <Label htmlFor="row-striping" className="cursor-pointer">
+                    Enable Row Striping
+                  </Label>
+                </div>
+                {tableStyling.rowStriping && (
+                  <div className="mt-2">
+                    <Label htmlFor="stripe-color">Stripe Color</Label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <input
+                        type="color"
+                        id="stripe-color"
+                        value={tableStyling.customStripeColor}
+                        onChange={(e) => updateTableStyling({ customStripeColor: e.target.value })}
+                        className="w-12 h-10 rounded-md border border-input cursor-pointer"
+                      />
+                      <Input
+                        type="text"
+                        value={tableStyling.customStripeColor}
+                        onChange={(e) => updateTableStyling({ customStripeColor: e.target.value })}
+                        className="flex-1"
+                        placeholder="#f0f0f0"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* Preset Styling Options */}
+            <div className="mt-4 pt-4 border-t border-muted">
+              <h4 className="font-medium text-md mb-2">Preset Styles</h4>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => updateTableStyling({
+                    textColor: 'text-foreground',
+                    backgroundColor: 'bg-background',
+                    borderColor: 'border-border',
+                    borderWidth: 1,
+                    headerBackgroundColor: 'bg-muted',
+                    headerTextColor: 'text-foreground',
+                    rowStriping: false,
+                    stripeColor: 'bg-muted/50',
+                    customTextColor: '#333333',
+                    customBackgroundColor: '#F5F5F5',
+                    customBorderColor: '#D9D9D9',
+                    customHeaderBackgroundColor: '#E6E6E6',
+                    customHeaderTextColor: '#333333',
+                    customStripeColor: '#EDEDED'
+                  })}
+                >
+                  Default
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => updateTableStyling({
+                    textColor: 'text-primary-foreground',
+                    backgroundColor: 'bg-primary',
+                    borderColor: 'border-primary',
+                    borderWidth: 2,
+                    headerBackgroundColor: 'bg-primary/90',
+                    headerTextColor: 'text-primary-foreground',
+                    rowStriping: true,
+                    stripeColor: 'bg-primary/80',
+                    customTextColor: '#D8BFD8',
+                    customBackgroundColor: '#D8BFD8',
+                    customBorderColor: '#D8BFD8',
+                    customHeaderBackgroundColor: '#C7AEC7',
+                    customHeaderTextColor: '#D8BFD8',
+                    customStripeColor: '#E0CCE0'
+                  })}
+                >
+                  Primary Theme
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => updateTableStyling({
+                    textColor: 'text-secondary-foreground',
+                    backgroundColor: 'bg-secondary',
+                    borderColor: 'border-secondary',
+                    borderWidth: 1,
+                    headerBackgroundColor: 'bg-secondary/90',
+                    headerTextColor: 'text-secondary-foreground',
+                    rowStriping: false,
+                    stripeColor: 'bg-secondary/50',
+                    customTextColor: '#E6E6FA',
+                    customBackgroundColor: '#E6E6FA',
+                    customBorderColor: '#D4D4F0',
+                    customHeaderBackgroundColor: '#D4D4F0',
+                    customHeaderTextColor: '#E6E6FA',
+                    customStripeColor: '#ECECFA'
+                  })}
+                >
+                  Secondary Theme
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => updateTableStyling({
+                    textColor: 'text-card-foreground',
+                    backgroundColor: 'bg-card',
+                    borderColor: 'border-card',
+                    borderWidth: 4,
+                    headerBackgroundColor: 'bg-card/90',
+                    headerTextColor: 'text-card-foreground',
+                    rowStriping: true,
+                    stripeColor: 'bg-card/50',
+                    customTextColor: '#333333',
+                    customBackgroundColor: '#ffffff',
+                    customBorderColor: '#D9D9D9',
+                    customHeaderBackgroundColor: '#f0f0f0',
+                    customHeaderTextColor: '#333333',
+                    customStripeColor: '#f8f8f8'
+                  })}
+                >
+                  Card Style
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Create Table Button */}
         {!tableCreated && (
@@ -427,86 +744,120 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
               </div>
             </div>
           <div className="mt-2 border rounded-lg overflow-hidden shadow-sm">
-            <Table className="w-full caption-bottom text-sm">
-              <TableHeader className="bg-muted/50">
-                <TableRow>
-                  <TableHead className="w-12 text-center p-2 font-medium text-muted-foreground">#</TableHead>
-                  {headers.map((header, colIndex) => (
-                    <TableHead key={colIndex} className="text-center p-2 min-w-[100px] relative font-medium text-muted-foreground">
-                      <div className="flex items-center justify-between">
-                        <span className="truncate text-xs">{header}</span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteColumn(colIndex);
-                          }}
-                          className="h-5 w-5 p-0 hover:bg-destructive hover:text-destructive-foreground rounded-full"
-                          disabled={columns <= 1}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </TableHead>
-                  ))}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {tableData.map((row, rowIndex) => (
-                  <TableRow key={rowIndex} className="hover:bg-muted/30">
-                    <TableCell className="w-12 text-center p-1 border-r">
-                      <div className="flex items-center justify-center">
-                        <span className="text-xs font-medium text-muted-foreground w-4">{rowIndex + 1}</span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDeleteRow(rowIndex)}
-                          className="h-5 w-5 p-0 hover:bg-destructive hover:text-destructive-foreground rounded-full ml-1"
-                          disabled={rows <= 1}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                    {row.map((cell, colIndex) => {
-                      const isSelected = selectedCells.some(selected =>
-                        selected.row === rowIndex && selected.col === colIndex
-                      );
-                      const isEditing = editingCell?.row === rowIndex && editingCell?.col === colIndex;
+           <Table className="w-full caption-bottom text-sm" style={{
+             backgroundColor: tableStyling.customBackgroundColor,
+             borderColor: tableStyling.customBorderColor,
+             borderWidth: tableStyling.borderWidth,
+             borderStyle: tableStyling.borderWidth > 0 ? 'solid' : 'none'
+           }}>
+             <TableHeader style={{ backgroundColor: tableStyling.customHeaderBackgroundColor }}>
+               <TableRow>
+                 <TableHead className="w-12 text-center p-2 font-medium border-r" style={{
+                   color: tableStyling.customHeaderTextColor,
+                   borderColor: tableStyling.customBorderColor,
+                   borderWidth: tableStyling.borderWidth,
+                   borderStyle: tableStyling.borderWidth > 0 ? 'solid' : 'none'
+                 }}>#</TableHead>
+                 {headers.map((header, colIndex) => (
+                   <TableHead
+                     key={colIndex}
+                     className="text-center p-2 min-w-[100px] relative font-medium border-r last:border-r-0"
+                     style={{
+                       color: tableStyling.customHeaderTextColor,
+                       borderColor: tableStyling.customBorderColor,
+                       borderWidth: tableStyling.borderWidth,
+                       borderStyle: tableStyling.borderWidth > 0 ? 'solid' : 'none'
+                     }}
+                   >
+                     <div className="flex items-center justify-between">
+                       <span className="truncate text-xs">{header}</span>
+                       <Button
+                         variant="ghost"
+                         size="icon"
+                         onClick={(e) => {
+                           e.stopPropagation();
+                           handleDeleteColumn(colIndex);
+                         }}
+                         className="h-5 w-5 p-0 hover:bg-destructive hover:text-destructive-foreground rounded-full"
+                         disabled={columns <= 1}
+                       >
+                         <Trash2 className="h-3 w-3" />
+                       </Button>
+                     </div>
+                   </TableHead>
+                 ))}
+               </TableRow>
+             </TableHeader>
+             <TableBody>
+               {tableData.map((row, rowIndex) => (
+                 <TableRow
+                   key={rowIndex}
+                   style={{
+                     backgroundColor: tableStyling.rowStriping && rowIndex % 2 === 1 ? tableStyling.customStripeColor : 'transparent'
+                   }}
+                   className="hover:bg-muted/30"
+                 >
+                   <TableCell className="w-12 text-center p-1 border-r" style={{
+                     borderColor: tableStyling.customBorderColor,
+                     borderWidth: tableStyling.borderWidth,
+                     borderStyle: tableStyling.borderWidth > 0 ? 'solid' : 'none'
+                   }}>
+                     <div className="flex items-center justify-center">
+                       <span className="text-xs font-medium w-4" style={{ color: tableStyling.customTextColor }}>{rowIndex + 1}</span>
+                       <Button
+                         variant="ghost"
+                         size="icon"
+                         onClick={() => handleDeleteRow(rowIndex)}
+                         className="h-5 w-5 p-0 hover:bg-destructive hover:text-destructive-foreground rounded-full ml-1"
+                         disabled={rows <= 1}
+                       >
+                         <Trash2 className="h-3 w-3" />
+                       </Button>
+                     </div>
+                   </TableCell>
+                   {row.map((cell, colIndex) => {
+                     const isSelected = selectedCells.some(selected =>
+                       selected.row === rowIndex && selected.col === colIndex
+                     );
+                     const isEditing = editingCell?.row === rowIndex && editingCell?.col === colIndex;
 
-                      return (
-                        <TableCell
-                          key={colIndex}
-                          className={`min-w-[100px] p-1 cursor-pointer transition-colors ${
-                            isSelected ? 'ring-2 ring-blue-500 bg-blue-50' : 'hover:bg-muted/50'
-                          } border-r last:border-r-0`}
-                          onClick={() => handleCellClick(rowIndex, colIndex)}
-                        >
-                          {isEditing ? (
-                            <Input
-                              value={cell}
-                              onChange={(e) => handleCellChange(e.target.value)}
-                              onBlur={() => setEditingCell(null)}
-                              onKeyPress={handleCellKeyPress}
-                              className="h-6 w-full text-xs p-1"
-                              autoFocus
-                            />
-                          ) : (
-                            <div className="h-6 flex items-center overflow-hidden">
-                              <span className="truncate w-full text-xs">
-                                {cell || <span className="text-muted-foreground/50 italic text-xs">(click to edit)</span>}
-                              </span>
-                            </div>
-                          )}
-                        </TableCell>
-                      );
-                    })}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                     return (
+                       <TableCell
+                         key={colIndex}
+                         className="min-w-[100px] p-1 cursor-pointer transition-colors border-r last:border-r-0"
+                         style={{
+                           color: tableStyling.customTextColor,
+                           borderColor: tableStyling.customBorderColor,
+                           borderWidth: tableStyling.borderWidth,
+                           borderStyle: tableStyling.borderWidth > 0 ? 'solid' : 'none',
+                           backgroundColor: isSelected ? '#dbeafe' : 'transparent'
+                         }}
+                         onClick={() => handleCellClick(rowIndex, colIndex)}
+                       >
+                         {isEditing ? (
+                           <Input
+                             value={cell}
+                             onChange={(e) => handleCellChange(e.target.value)}
+                             onBlur={() => setEditingCell(null)}
+                             onKeyPress={handleCellKeyPress}
+                             className="h-6 w-full text-xs p-1"
+                             autoFocus
+                           />
+                         ) : (
+                           <div className="h-6 flex items-center overflow-hidden">
+                             <span className="truncate w-full text-xs">
+                               {cell || <span className="text-muted-foreground/50 italic text-xs">(click to edit)</span>}
+                             </span>
+                           </div>
+                         )}
+                       </TableCell>
+                     );
+                   })}
+                 </TableRow>
+               ))}
+             </TableBody>
+           </Table>
+         </div>
           {mergeMode && (
             <p className="text-xs text-muted-foreground mt-2 px-1 py-1 bg-muted/50 rounded">
               {selectedCells.length === 0 && "Click cells to select for merging"}
@@ -522,23 +873,56 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
       {tableCreated && showPreview && tableId && (
           <Card className="mt-4">
             <CardHeader className="pb-2">
-              <CardTitle className="text-md">Preview: {tableTitle || `Table ${tableId}`}</CardTitle>
+              <CardTitle className="text-md">Preview: {useTableTitle ? (tableTitle || `Table ${tableId}`) : `Table ${tableId}`}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto border rounded-md">
-                <Table className="w-full caption-bottom text-sm">
-                  <TableHeader className="bg-muted/50">
+                <Table className="w-full caption-bottom text-sm" style={{
+                  backgroundColor: tableStyling.customBackgroundColor,
+                  borderColor: tableStyling.customBorderColor,
+                  borderWidth: tableStyling.borderWidth,
+                  borderStyle: tableStyling.borderWidth > 0 ? 'solid' : 'none'
+                }}>
+                  <TableHeader style={{ backgroundColor: tableStyling.customHeaderBackgroundColor }}>
                     <TableRow>
                       {headers.map((header, index) => (
-                        <TableHead key={index} className="text-xs font-medium text-muted-foreground p-2">{header}</TableHead>
+                        <TableHead
+                          key={index}
+                          className="text-xs font-medium p-2 border-r last:border-r-0"
+                          style={{
+                            color: tableStyling.customHeaderTextColor,
+                            borderColor: tableStyling.customBorderColor,
+                            borderWidth: tableStyling.borderWidth,
+                            borderStyle: tableStyling.borderWidth > 0 ? 'solid' : 'none'
+                          }}
+                        >
+                          {header}
+                        </TableHead>
                       ))}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {tableData.map((row, rowIndex) => (
-                      <TableRow key={rowIndex} className="hover:bg-muted/30">
+                      <TableRow
+                        key={rowIndex}
+                        style={{
+                          backgroundColor: tableStyling.rowStriping && rowIndex % 2 === 1 ? tableStyling.customStripeColor : 'transparent'
+                        }}
+                        className="hover:bg-muted/30"
+                      >
                         {row.map((cell, cellIndex) => (
-                          <TableCell key={cellIndex} className="p-2 text-xs border-r last:border-r-0">{cell || ''}</TableCell>
+                          <TableCell
+                            key={cellIndex}
+                            className="p-2 text-xs border-r last:border-r-0"
+                            style={{
+                              color: tableStyling.customTextColor,
+                              borderColor: tableStyling.customBorderColor,
+                              borderWidth: tableStyling.borderWidth,
+                              borderStyle: tableStyling.borderWidth > 0 ? 'solid' : 'none'
+                            }}
+                          >
+                            {cell || ''}
+                          </TableCell>
                         ))}
                       </TableRow>
                     ))}
