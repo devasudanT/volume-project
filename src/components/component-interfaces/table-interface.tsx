@@ -46,18 +46,19 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
   const [mergeMode, setMergeMode] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [generatedTable, setGeneratedTable] = useState<VisualTableData | null>(null);
+  const [tableCreated, setTableCreated] = useState(false);
 
   const { toast } = useToast();
 
   // Initialize empty table data only when component mounts or when table is empty
   React.useEffect(() => {
-    if (tableData.length === 0) {
+    if (tableData.length === 0 && tableCreated) {
       const newData = Array(rows).fill(null).map(() =>
         Array(columns).fill('')
       );
       setTableData(newData);
     }
-  }, [rows, columns, tableData.length]);
+  }, [rows, columns, tableData.length, tableCreated]);
 
   // Generate headers (Column 1, Column 2, etc.)
   const headers = useMemo(() => {
@@ -260,110 +261,191 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
 
       <CardContent className="space-y-4">
         {/* Table Configuration */}
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <Label htmlFor="rows-count">Rows</Label>
-            <Input
-              id="rows-count"
-              type="number"
-              min="1"
-              max="20"
-              value={rows}
-              onChange={(e) => setRows(Math.max(1, parseInt(e.target.value) || 1))}
-            />
-          </div>
-          <div>
-            <Label htmlFor="columns-count">Columns</Label>
-            <Input
-              id="columns-count"
-              type="number"
-              min="1"
-              max="10"
-              value={columns}
-              onChange={(e) => setColumns(Math.max(1, parseInt(e.target.value) || 1))}
-            />
+        <div className="bg-muted/50 rounded-lg p-4 mb-4">
+          <h3 className="font-medium text-lg mb-3 flex items-center">
+            <Grid3X3 className="h-5 w-5 mr-2 text-primary" />
+            Table Dimensions
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="rows-count" className="flex items-center">
+                <span className="bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center text-xs mr-2">R</span>
+                Rows
+              </Label>
+              <div className="flex items-center">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="rounded-r-none border-r-0"
+                  onClick={() => setRows(Math.max(1, rows - 1))}
+                  disabled={rows <= 1}
+                >
+                  -
+                </Button>
+                <Input
+                  id="rows-count"
+                  type="number"
+                  min="1"
+                  max="20"
+                  value={rows}
+                  onChange={(e) => setRows(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="rounded-none text-center"
+                />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="rounded-l-none border-l-0"
+                  onClick={() => setRows(Math.min(20, rows + 1))}
+                  disabled={rows >= 20}
+                >
+                  +
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">Min: 1, Max: 20</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="columns-count" className="flex items-center">
+                <span className="bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center text-xs mr-2">C</span>
+                Columns
+              </Label>
+              <div className="flex items-center">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="rounded-r-none border-r-0"
+                  onClick={() => setColumns(Math.max(1, columns - 1))}
+                  disabled={columns <= 1}
+                >
+                  -
+                </Button>
+                <Input
+                  id="columns-count"
+                  type="number"
+                  min="1"
+                  max="10"
+                  value={columns}
+                  onChange={(e) => setColumns(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="rounded-none text-center"
+                />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="rounded-l-none border-l-0"
+                  onClick={() => setColumns(Math.min(10, columns + 1))}
+                  disabled={columns >= 10}
+                >
+                  +
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">Min: 1, Max: 10</p>
+            </div>
           </div>
         </div>
 
         {/* Basic Info */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <Label htmlFor="table-id">Table ID</Label>
-            <Input
-              id="table-id"
-              placeholder="e.g., users-table"
-              value={tableId}
-              onChange={(e) => setTableId(e.target.value)}
-            />
-          </div>
-          <div>
-            <Label htmlFor="table-title">Table Title</Label>
-            <Input
-              id="table-title"
-              placeholder="e.g., User Information"
-              value={tableTitle}
-              onChange={(e) => setTableTitle(e.target.value)}
-            />
+        <div className="bg-muted/50 rounded-lg p-4">
+          <h3 className="font-medium text-lg mb-3 flex items-center">
+            <span className="bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center text-xs mr-2">#</span>
+            Table Information
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="table-id">Table ID</Label>
+              <Input
+                id="table-id"
+                placeholder="e.g., users-table"
+                value={tableId}
+                onChange={(e) => setTableId(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">Unique identifier for the table</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="table-title">Table Title</Label>
+              <Input
+                id="table-title"
+                placeholder="e.g., User Information"
+                value={tableTitle}
+                onChange={(e) => setTableTitle(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">Display title for the table</p>
+            </div>
           </div>
         </div>
 
+        {/* Create Table Button */}
+        {!tableCreated && (
+          <div className="flex flex-col items-center gap-4 py-4">
+            <Button
+              onClick={() => setTableCreated(true)}
+              className="w-full max-w-xs"
+              disabled={rows < 1 || columns < 1}
+            >
+              <Grid3X3 className="h-4 w-4 mr-2" /> Create Table
+            </Button>
+            <p className="text-sm text-muted-foreground">
+              Enter rows and columns above, then click "Create Table" to proceed
+            </p>
+          </div>
+        )}
+
         {/* Visual Table Editor */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-4">
-              <Label>Click cells to edit:</Label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="merge-mode"
-                  checked={mergeMode}
-                  onChange={(e) => {
-                    setMergeMode(e.target.checked);
-                    setSelectedCells([]);
-                  }}
-                  className="rounded"
-                />
-                <Label htmlFor="merge-mode" className="text-sm cursor-pointer">
-                  Merge Mode
-                </Label>
+        {tableCreated && (
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-4">
+                <Label>Click cells to edit:</Label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="merge-mode"
+                    checked={mergeMode}
+                    onChange={(e) => {
+                      setMergeMode(e.target.checked);
+                      setSelectedCells([]);
+                    }}
+                    className="rounded"
+                  />
+                  <Label htmlFor="merge-mode" className="text-sm cursor-pointer">
+                    Merge Mode
+                  </Label>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                {mergeMode && selectedCells.length === 2 && (
+                  <Button onClick={handleMergeCells} size="sm" variant="outline">
+                    <Merge className="h-4 w-4 mr-2" /> Merge Selected
+                  </Button>
+                )}
+                <Button
+                  onClick={() => setShowPreview(!showPreview)}
+                  variant="outline"
+                  size="sm"
+                  disabled={!tableId}
+                >
+                  <Eye className="h-4 w-4 mr-2" /> {showPreview ? 'Hide' : 'Show'} Preview
+                </Button>
               </div>
             </div>
-            <div className="flex gap-2">
-              {mergeMode && selectedCells.length === 2 && (
-                <Button onClick={handleMergeCells} size="sm" variant="outline">
-                  <Merge className="h-4 w-4 mr-2" /> Merge Selected
-                </Button>
-              )}
-              <Button
-                onClick={() => setShowPreview(!showPreview)}
-                variant="outline"
-                size="sm"
-                disabled={!tableId}
-              >
-                <Eye className="h-4 w-4 mr-2" /> {showPreview ? 'Hide' : 'Show'} Preview
-              </Button>
-            </div>
-          </div>
-          <div className="mt-2 border rounded-lg overflow-hidden">
-            <Table>
-              <TableHeader>
+          <div className="mt-2 border rounded-lg overflow-hidden shadow-sm">
+            <Table className="w-full caption-bottom text-sm">
+              <TableHeader className="bg-muted/50">
                 <TableRow>
-                  <TableHead className="w-16 text-center">#</TableHead>
+                  <TableHead className="w-12 text-center p-2 font-medium text-muted-foreground">#</TableHead>
                   {headers.map((header, colIndex) => (
-                    <TableHead key={colIndex} className="text-center min-w-[120px] relative">
-                      <div className="flex items-center justify-center gap-1">
-                        <span className="truncate">{header}</span>
+                    <TableHead key={colIndex} className="text-center p-2 min-w-[100px] relative font-medium text-muted-foreground">
+                      <div className="flex items-center justify-between">
+                        <span className="truncate text-xs">{header}</span>
                         <Button
                           variant="ghost"
-                          size="sm"
+                          size="icon"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleDeleteColumn(colIndex);
                           }}
-                          className="h-6 w-6 p-0 hover:bg-red-100 hover:text-red-600"
+                          className="h-5 w-5 p-0 hover:bg-destructive hover:text-destructive-foreground rounded-full"
                           disabled={columns <= 1}
                         >
-                          ×
+                          <Trash2 className="h-3 w-3" />
                         </Button>
                       </div>
                     </TableHead>
@@ -372,18 +454,18 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
               </TableHeader>
               <TableBody>
                 {tableData.map((row, rowIndex) => (
-                  <TableRow key={rowIndex}>
-                    <TableCell className="w-16 text-center p-2">
-                      <div className="flex items-center justify-center gap-1">
-                        <span className="text-sm font-medium">{rowIndex + 1}</span>
+                  <TableRow key={rowIndex} className="hover:bg-muted/30">
+                    <TableCell className="w-12 text-center p-1 border-r">
+                      <div className="flex items-center justify-center">
+                        <span className="text-xs font-medium text-muted-foreground w-4">{rowIndex + 1}</span>
                         <Button
                           variant="ghost"
-                          size="sm"
+                          size="icon"
                           onClick={() => handleDeleteRow(rowIndex)}
-                          className="h-6 w-6 p-0 hover:bg-red-100 hover:text-red-600"
+                          className="h-5 w-5 p-0 hover:bg-destructive hover:text-destructive-foreground rounded-full ml-1"
                           disabled={rows <= 1}
                         >
-                          ×
+                          <Trash2 className="h-3 w-3" />
                         </Button>
                       </div>
                     </TableCell>
@@ -396,9 +478,9 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
                       return (
                         <TableCell
                           key={colIndex}
-                          className={`min-w-[120px] cursor-pointer hover:bg-muted/50 transition-colors ${
-                            isSelected ? 'ring-4 ring-blue-500 bg-blue-100 border-2 border-blue-400 shadow-lg' : ''
-                          }`}
+                          className={`min-w-[100px] p-1 cursor-pointer transition-colors ${
+                            isSelected ? 'ring-2 ring-blue-500 bg-blue-50' : 'hover:bg-muted/50'
+                          } border-r last:border-r-0`}
                           onClick={() => handleCellClick(rowIndex, colIndex)}
                         >
                           {isEditing ? (
@@ -407,13 +489,13 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
                               onChange={(e) => handleCellChange(e.target.value)}
                               onBlur={() => setEditingCell(null)}
                               onKeyPress={handleCellKeyPress}
-                              className="h-8 w-full"
+                              className="h-6 w-full text-xs p-1"
                               autoFocus
                             />
                           ) : (
-                            <div className="h-8 flex items-center overflow-hidden">
-                              <span className="truncate w-full">
-                                {cell || <span className="text-muted-foreground italic">(click to edit)</span>}
+                            <div className="h-6 flex items-center overflow-hidden">
+                              <span className="truncate w-full text-xs">
+                                {cell || <span className="text-muted-foreground/50 italic text-xs">(click to edit)</span>}
                               </span>
                             </div>
                           )}
@@ -426,7 +508,7 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
             </Table>
           </div>
           {mergeMode && (
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-xs text-muted-foreground mt-2 px-1 py-1 bg-muted/50 rounded">
               {selectedCells.length === 0 && "Click cells to select for merging"}
               {selectedCells.length === 1 && "Click an adjacent cell to merge"}
               {selectedCells.length === 2 && "Click 'Merge Selected' to combine cells"}
@@ -434,35 +516,36 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
             </p>
           )}
         </div>
+      )}
 
-        {/* Table Preview */}
-        {showPreview && tableId && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Preview: {tableTitle || `Table ${tableId}`}</CardTitle>
+      {/* Table Preview */}
+      {tableCreated && showPreview && tableId && (
+          <Card className="mt-4">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-md">Preview: {tableTitle || `Table ${tableId}`}</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
+              <div className="overflow-x-auto border rounded-md">
+                <Table className="w-full caption-bottom text-sm">
+                  <TableHeader className="bg-muted/50">
                     <TableRow>
                       {headers.map((header, index) => (
-                        <TableHead key={index}>{header}</TableHead>
+                        <TableHead key={index} className="text-xs font-medium text-muted-foreground p-2">{header}</TableHead>
                       ))}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {tableData.map((row, rowIndex) => (
-                      <TableRow key={rowIndex}>
+                      <TableRow key={rowIndex} className="hover:bg-muted/30">
                         {row.map((cell, cellIndex) => (
-                          <TableCell key={cellIndex}>{cell || ''}</TableCell>
+                          <TableCell key={cellIndex} className="p-2 text-xs border-r last:border-r-0">{cell || ''}</TableCell>
                         ))}
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
               </div>
-              <p className="text-sm text-muted-foreground mt-2">
+              <p className="text-xs text-muted-foreground mt-2">
                 {tableData.length} rows × {headers.length} columns
               </p>
             </CardContent>
@@ -470,23 +553,31 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
         )}
 
         {/* Action Buttons */}
-        <div className="flex flex-wrap gap-2">
-          <Button onClick={handleCompileTable} disabled={!tableId}>
-            <Play className="h-4 w-4 mr-2" /> Compile Table
-          </Button>
-          <Button
-            onClick={handleAddTableToMain}
-            disabled={!generatedTable}
-          >
-            <Plus className="h-4 w-4 mr-2" /> Add to Main Output
-          </Button>
-          <Button variant="outline" onClick={handleClearTable}>
-            <Trash2 className="h-4 w-4 mr-2" /> Clear
-          </Button>
-        </div>
+        {tableCreated && (
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={handleCompileTable} disabled={!tableId}>
+              <Play className="h-4 w-4 mr-2" /> Compile Table
+            </Button>
+            <Button
+              onClick={handleAddTableToMain}
+              disabled={!generatedTable}
+            >
+              <Plus className="h-4 w-4 mr-2" /> Add to Main Output
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                handleClearTable();
+                setTableCreated(false);
+              }}
+            >
+              <Trash2 className="h-4 w-4 mr-2" /> Clear
+            </Button>
+          </div>
+        )}
 
         {/* Generated JSON Preview */}
-        {generatedTable && (
+        {tableCreated && generatedTable && (
           <ScrollArea className="h-48 w-full rounded-md border p-2 bg-secondary/20">
             <pre className="text-xs whitespace-pre-wrap break-all">
               {JSON.stringify(generatedTable, null, 2)}
