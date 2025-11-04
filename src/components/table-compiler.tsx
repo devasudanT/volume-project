@@ -45,6 +45,7 @@ export function TableCompiler({ setJsonOutputs }: TableCompilerProps) {
   const [editingCell, setEditingCell] = useState<{row: number, col: number} | null>(null);
   const [selectedCells, setSelectedCells] = useState<{row: number, col: number}[]>([]);
   const [mergeMode, setMergeMode] = useState(false);
+  const [mergedCells, setMergedCells] = useState<MergedCell[]>([]);
   const [showPreview, setShowPreview] = useState(false);
   const [generatedTable, setGeneratedTable] = useState<VisualTableData | null>(null);
 
@@ -121,25 +122,42 @@ export function TableCompiler({ setJsonOutputs }: TableCompilerProps) {
 
   // Merge selected cells
   const handleMergeCells = () => {
-    if (selectedCells.length !== 2) {
-      toast({ title: "Error", description: "Please select exactly 2 adjacent cells to merge.", variant: "destructive" });
+    if (selectedCells.length < 2) {
+      toast({ title: "Error", description: "Please select at least two cells to merge.", variant: "destructive" });
       return;
     }
-
-    const [cell1, cell2] = selectedCells;
-    const startRow = Math.min(cell1.row, cell2.row);
-    const endRow = Math.max(cell1.row, cell2.row);
-    const startCol = Math.min(cell1.col, cell2.col);
-    const endCol = Math.max(cell1.col, cell2.col);
-
-    // For now, just combine the cell values
-    const mergedValue = `${tableData[cell1.row][cell1.col]} ${tableData[cell2.row][cell2.col]}`.trim();
-
-    // Update the first cell with merged value and clear the second
+  
+    const minRow = Math.min(...selectedCells.map(c => c.row));
+    const maxRow = Math.max(...selectedCells.map(c => c.row));
+    const minCol = Math.min(...selectedCells.map(c => c.col));
+    const maxCol = Math.max(...selectedCells.map(c => c.col));
+  
+    const rowspan = maxRow - minRow + 1;
+    const colspan = maxCol - minCol + 1;
+  
+    // Check if the selection forms a rectangle
+    if (selectedCells.length !== rowspan * colspan) {
+      toast({ title: "Error", description: "Selected cells must form a rectangle to be merged.", variant: "destructive" });
+      return;
+    }
+  
+    const mergedValue = selectedCells
+      .map(cell => tableData[cell.row][cell.col])
+      .join(' ')
+      .trim();
+  
     const newData = [...tableData];
-    newData[cell1.row][cell1.col] = mergedValue;
-    newData[cell2.row][cell2.col] = '';
-
+    newData[minRow][minCol] = mergedValue;
+  
+    const newMergedCell: MergedCell = {
+      row: minRow,
+      col: minCol,
+      rowspan,
+      colspan,
+      id: `merged-${minRow}-${minCol}`,
+    };
+  
+    setMergedCells(prev => [...prev, newMergedCell]);
     setTableData(newData);
     setSelectedCells([]);
     toast({ title: "Cells Merged", description: "Selected cells have been merged." });
@@ -175,6 +193,7 @@ export function TableCompiler({ setJsonOutputs }: TableCompilerProps) {
       ...(useTableTitle && { title: tableTitle.trim() || `Table ${tableId}` }),
       headers: finalHeaders,
       data: filteredData,
+      mergedCells: mergedCells,
       metadata: {
         totalRows: filteredData.length,
         totalColumns: finalHeaders.length,
@@ -246,6 +265,7 @@ export function TableCompiler({ setJsonOutputs }: TableCompilerProps) {
     setEditingCell(null);
     setSelectedCells([]);
     setMergeMode(false);
+    setMergedCells([]);
     toast({ title: "Cleared", description: "Table data cleared." });
   };
 
@@ -401,6 +421,16 @@ export function TableCompiler({ setJsonOutputs }: TableCompilerProps) {
                       </div>
                     </TableCell>
                     {row.map((cell, colIndex) => {
+                      const mergedCell = mergedCells.find(mc => mc.row === rowIndex && mc.col === colIndex);
+                      
+                      const isCovered = mergedCells.some(mc =>
+                        rowIndex >= mc.row && rowIndex < mc.row + mc.rowspan &&
+                        colIndex >= mc.col && colIndex < mc.col + mc.colspan &&
+                        (rowIndex !== mc.row || colIndex !== mc.col)
+                      );
+
+                      if (isCovered) return null;
+
                       const isSelected = selectedCells.some(selected =>
                         selected.row === rowIndex && selected.col === colIndex
                       );
@@ -409,6 +439,8 @@ export function TableCompiler({ setJsonOutputs }: TableCompilerProps) {
                       return (
                         <TableCell
                           key={colIndex}
+                          rowSpan={mergedCell?.rowspan}
+                          colSpan={mergedCell?.colspan}
                           className={`min-w-[120px] cursor-pointer hover:bg-muted/50 transition-colors ${
                             isSelected ? 'ring-4 ring-blue-500 bg-blue-100 border-2 border-blue-400 shadow-lg' : ''
                           }`}

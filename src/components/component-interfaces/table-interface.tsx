@@ -62,6 +62,7 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
   const [editingCell, setEditingCell] = useState<{row: number, col: number} | null>(null);
   const [selectedCells, setSelectedCells] = useState<{row: number, col: number}[]>([]);
   const [mergeMode, setMergeMode] = useState(false);
+  const [mergedCells, setMergedCells] = useState<MergedCell[]>([]);
   const [showPreview, setShowPreview] = useState(false);
   const [generatedTable, setGeneratedTable] = useState<VisualTableData | null>(null);
   const [tableCreated, setTableCreated] = useState(false);
@@ -155,25 +156,42 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
 
   // Merge selected cells
   const handleMergeCells = () => {
-    if (selectedCells.length !== 2) {
-      toast({ title: "Error", description: "Please select exactly 2 adjacent cells to merge.", variant: "destructive" });
+    if (selectedCells.length < 2) {
+      toast({ title: "Error", description: "Please select at least two cells to merge.", variant: "destructive" });
       return;
     }
 
-    const [cell1, cell2] = selectedCells;
-    const startRow = Math.min(cell1.row, cell2.row);
-    const endRow = Math.max(cell1.row, cell2.row);
-    const startCol = Math.min(cell1.col, cell2.col);
-    const endCol = Math.max(cell1.col, cell2.col);
+    const minRow = Math.min(...selectedCells.map(c => c.row));
+    const maxRow = Math.max(...selectedCells.map(c => c.row));
+    const minCol = Math.min(...selectedCells.map(c => c.col));
+    const maxCol = Math.max(...selectedCells.map(c => c.col));
 
-    // For now, just combine the cell values
-    const mergedValue = `${tableData[cell1.row][cell1.col]} ${tableData[cell2.row][cell2.col]}`.trim();
+    const rowspan = maxRow - minRow + 1;
+    const colspan = maxCol - minCol + 1;
 
-    // Update the first cell with merged value and clear the second
+    // Check if the selection forms a rectangle
+    if (selectedCells.length !== rowspan * colspan) {
+      toast({ title: "Error", description: "Selected cells must form a rectangle to be merged.", variant: "destructive" });
+      return;
+    }
+
+    const mergedValue = selectedCells
+      .map(cell => tableData[cell.row][cell.col])
+      .join(' ')
+      .trim();
+
     const newData = [...tableData];
-    newData[cell1.row][cell1.col] = mergedValue;
-    newData[cell2.row][cell2.col] = '';
+    newData[minRow][minCol] = mergedValue;
 
+    const newMergedCell: MergedCell = {
+      row: minRow,
+      col: minCol,
+      rowspan,
+      colspan,
+      id: `merged-${minRow}-${minCol}`,
+    };
+
+    setMergedCells(prev => [...prev, newMergedCell]);
     setTableData(newData);
     setSelectedCells([]);
     toast({ title: "Cells Merged", description: "Selected cells have been merged." });
@@ -209,6 +227,7 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
       ...(useTableTitle && { title: tableTitle.trim() || `Table ${tableId}` }),
       headers: finalHeaders,
       data: filteredData,
+      mergedCells: mergedCells,
       metadata: {
         totalRows: filteredData.length,
         totalColumns: finalHeaders.length,
@@ -280,6 +299,7 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
     setEditingCell(null);
     setSelectedCells([]);
     setMergeMode(false);
+    setMergedCells([]);
     toast({ title: "Cleared", description: "Table data cleared." });
   };
 
@@ -816,6 +836,19 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
                      </div>
                    </TableCell>
                    {row.map((cell, colIndex) => {
+                     // Check if this cell is a merged cell
+                     const mergedCell = mergedCells.find(mc => mc.row === rowIndex && mc.col === colIndex);
+                     
+                     // Check if this cell is part of a merge, but not the master cell
+                    const isCovered = mergedCells.some(mc =>
+                        rowIndex >= mc.row && rowIndex < mc.row + mc.rowspan &&
+                        colIndex >= mc.col && colIndex < mc.col + mc.colspan &&
+                        (rowIndex !== mc.row || colIndex !== mc.col)
+                    );
+
+                    // Don't render covered cells
+                    if (isCovered) return null;
+                     
                      const isSelected = selectedCells.some(selected =>
                        selected.row === rowIndex && selected.col === colIndex
                      );
@@ -824,6 +857,8 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
                      return (
                        <TableCell
                          key={colIndex}
+                         rowSpan={mergedCell?.rowspan}
+                         colSpan={mergedCell?.colspan}
                          className="min-w-[100px] p-1 cursor-pointer transition-colors border-r last:border-r-0"
                          style={{
                            color: tableStyling.customTextColor,
@@ -910,20 +945,37 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
                         }}
                         className="hover:bg-muted/30"
                       >
-                        {row.map((cell, cellIndex) => (
-                          <TableCell
-                            key={cellIndex}
-                            className="p-2 text-xs border-r last:border-r-0"
-                            style={{
-                              color: tableStyling.customTextColor,
-                              borderColor: tableStyling.customBorderColor,
-                              borderWidth: tableStyling.borderWidth,
-                              borderStyle: tableStyling.borderWidth > 0 ? 'solid' : 'none'
-                            }}
-                          >
-                            {cell || ''}
-                          </TableCell>
-                        ))}
+                        {row.map((cell, cellIndex) => {
+                          // Check if this cell is a merged cell
+                          const mergedCell = mergedCells.find(mc => mc.row === rowIndex && mc.col === cellIndex);
+                          
+                          // Check if this cell is part of a merge, but not the master cell
+                          const isCovered = mergedCells.some(mc =>
+                            rowIndex >= mc.row && rowIndex < mc.row + mc.rowspan &&
+                            cellIndex >= mc.col && cellIndex < mc.col + mc.colspan &&
+                            (rowIndex !== mc.row || cellIndex !== mc.col)
+                          );
+
+                          // Don't render covered cells
+                          if (isCovered) return null;
+                          
+                          return (
+                            <TableCell
+                              key={cellIndex}
+                              rowSpan={mergedCell?.rowspan}
+                              colSpan={mergedCell?.colspan}
+                              className="p-2 text-xs border-r last:border-r-0"
+                              style={{
+                                color: tableStyling.customTextColor,
+                                borderColor: tableStyling.customBorderColor,
+                                borderWidth: tableStyling.borderWidth,
+                                borderStyle: tableStyling.borderWidth > 0 ? 'solid' : 'none'
+                              }}
+                            >
+                              {cell || ''}
+                            </TableCell>
+                          );
+                        })}
                       </TableRow>
                     ))}
                   </TableBody>
