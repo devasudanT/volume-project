@@ -24,6 +24,8 @@ export interface VisualTableData {
   id: string;
   title?: string;
   data: string[][];
+  headers?: string[];
+  hasHeaders?: boolean;
   mergedCells?: MergedCell[];
   alignment?: 'left' | 'center' | 'right' | 'justify';
   metadata: {
@@ -70,6 +72,7 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
   const [tableId, setTableId] = useState('');
   const [tableTitle, setTableTitle] = useState('');
   const [useTableTitle, setUseTableTitle] = useState(true);
+  const [useHeader, setUseHeader] = useState(false);
   const [tableData, setTableData] = useState<string[][]>([]);
   const [editingCell, setEditingCell] = useState<{row: number, col: number} | null>(null);
   const [selectedCells, setSelectedCells] = useState<{row: number, col: number}[]>([]);
@@ -253,7 +256,7 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
       return;
     }
 
-    // Use all rows as data (no separate headers)
+    // Filter out empty rows
     const finalData = tableData.filter(row =>
       row.some(cell => cell.trim() !== '')
     );
@@ -263,14 +266,28 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
       return;
     }
 
+    let headers: string[] | undefined;
+    let dataRows: string[][];
+
+    if (useHeader && finalData.length > 0) {
+      // First row as headers
+      headers = finalData[0];
+      // Rest as data
+      dataRows = finalData.slice(1);
+    } else {
+      // All rows as data
+      dataRows = finalData;
+    }
+
     const generatedData: VisualTableData = {
       type: "table",
       id: tableId.trim(),
       ...(useTableTitle && { title: tableTitle.trim() || `Table ${tableId}` }),
-      data: finalData,
+      data: dataRows,
+      ...(useHeader && { headers, hasHeaders: true }),
       mergedCells: mergedCells,
       metadata: {
-        totalRows: finalData.length,
+        totalRows: dataRows.length,
         totalColumns: finalData[0]?.length || 0
       }
     };
@@ -335,6 +352,7 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
     setTableId('');
     setTableTitle('');
     setUseTableTitle(true);
+    setUseHeader(false);
     setGeneratedTable(null);
     setEditingCell(null);
     setSelectedCells([]);
@@ -490,7 +508,19 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
                   onChange={(e) => setTableTitle(e.target.value)}
                 />
               )}
-              <p className="text-xs text-muted-foreground">Display title for the table</p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="use-header"
+                  checked={useHeader}
+                  onChange={(e) => setUseHeader(e.target.checked)}
+                  className="rounded"
+                />
+                <Label htmlFor="use-header" className="cursor-pointer">First Row as Header</Label>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                When enabled, the first row is treated as headers and excluded from data rows
+              </p>
             </div>
           </div>
         </div>
@@ -738,6 +768,9 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
           <Card className="mt-4">
             <CardHeader className="pb-2">
               <CardTitle className="text-md">Preview: {useTableTitle ? (tableTitle || `Table ${tableId}`) : `Table ${tableId}`}</CardTitle>
+              {useHeader && (
+                <p className="text-xs text-muted-foreground">First row contains headers</p>
+              )}
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto border rounded-md">
@@ -747,24 +780,27 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
                   borderWidth: tableStyling.borderWidth,
                   borderStyle: tableStyling.borderWidth > 0 ? 'solid' : 'none'
                 }}>
-                  <TableHeader style={{ backgroundColor: tableStyling.customHeaderBackgroundColor }}>
-                    <TableRow>
-                      {columnLabels.map((label: string, index: number) => (
-                        <TableHead
-                          key={index}
-                          className="text-xs font-medium p-2 border-r last:border-r-0"
-                          style={{
-                            color: tableStyling.customHeaderTextColor,
-                            borderColor: tableStyling.customBorderColor,
-                            borderWidth: tableStyling.borderWidth,
-                            borderStyle: tableStyling.borderWidth > 0 ? 'solid' : 'none'
-                          }}
-                        >
-                          {label}
-                        </TableHead>
-                      ))}
-                    </TableRow>
-                  </TableHeader>
+                  {/* Show headers row if toggle is on */}
+                  {useHeader && (
+                    <TableHeader style={{ backgroundColor: tableStyling.customHeaderBackgroundColor }}>
+                      <TableRow>
+                        {tableData.length > 0 && tableData[0].map((header, index) => (
+                          <TableHead
+                            key={index}
+                            className="text-xs font-medium p-2 border-r last:border-r-0"
+                            style={{
+                              color: tableStyling.customHeaderTextColor,
+                              borderColor: tableStyling.customBorderColor,
+                              borderWidth: tableStyling.borderWidth,
+                              borderStyle: tableStyling.borderWidth > 0 ? 'solid' : 'none'
+                            }}
+                          >
+                            {header || `Column ${index + 1}`}
+                          </TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                  )}
                   <TableBody>
                     {tableData.map((row, rowIndex) => (
                       <TableRow
@@ -787,6 +823,9 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
 
                           // Don't render covered cells
                           if (isCovered) return null;
+                          
+                          // Skip rendering the first row if it's headers
+                          if (useHeader && rowIndex === 0) return null;
                           
                           return (
                             <TableCell
@@ -811,7 +850,7 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
                 </Table>
               </div>
               <p className="text-xs text-muted-foreground mt-2">
-                {tableData.length} rows × {columns} columns
+                {useHeader ? `${Math.max(0, tableData.length - 1)} data rows + 1 header row` : `${tableData.length} rows`} × {columns} columns
               </p>
             </CardContent>
           </Card>
