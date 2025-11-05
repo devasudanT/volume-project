@@ -1,11 +1,13 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Play, Plus, Trash2, Grid3X3, Merge, Eye } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Play, Plus, Trash2, Grid3X3, Merge, Eye, AlignLeft, AlignCenter, AlignRight, AlignJustify, Bold, Italic, Underline, Copy, Scissors, ClipboardPaste, RotateCcw } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 
 // Visual Table Data Interface with Merge Support
@@ -24,6 +26,7 @@ export interface VisualTableData {
   headers: string[];
   data: string[][];
   mergedCells?: MergedCell[];
+  alignment?: 'left' | 'center' | 'right' | 'justify';
   metadata: {
     totalRows: number;
     totalColumns: number;
@@ -46,6 +49,17 @@ export interface TableStylingConfig {
   customHeaderBackgroundColor: string;
   customHeaderTextColor: string;
   customStripeColor: string;
+}
+
+export interface CellStyle {
+  textColor: string;
+  bgColor: string;
+  textAlign: 'left' | 'center' | 'right';
+  verticalAlign: 'top' | 'middle' | 'bottom';
+  fontStyle: 'normal' | 'bold' | 'italic' | 'underline';
+  fontSize: number;
+  borderColor: string;
+  borderWidth: number;
 }
 
 interface TableInterfaceProps {
@@ -83,6 +97,16 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
     customStripeColor: '#f0f0f0'
   });
 
+  const [cellStyles, setCellStyles] = useState<CellStyle[][]>([]);
+
+  const [contextMenu, setContextMenu] = useState<{x: number, y: number, cell: {row: number, col: number}} | null>(null);
+
+  const [clipboard, setClipboard] = useState<string>('');
+
+  const [alignMode, setAlignMode] = useState(false);
+
+  const [selectedAlignment, setSelectedAlignment] = useState<'left' | 'center' | 'right'>('left');
+
   const { toast } = useToast();
 
   // Initialize empty table data only when component mounts or when table is empty
@@ -94,6 +118,25 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
       setTableData(newData);
     }
   }, [rows, columns, tableData.length, tableCreated]);
+
+  // Initialize cell styles
+  React.useEffect(() => {
+    if (cellStyles.length === 0 && tableCreated) {
+      const newStyles = Array(rows).fill(null).map(() =>
+        Array(columns).fill({
+          textColor: '#000000',
+          bgColor: '#ffffff',
+          textAlign: 'left' as 'left',
+          verticalAlign: 'middle' as 'middle',
+          fontStyle: 'normal' as 'normal',
+          fontSize: 12,
+          borderColor: '#e5e5e5',
+          borderWidth: 1
+        })
+      );
+      setCellStyles(newStyles);
+    }
+  }, [rows, columns, cellStyles.length, tableCreated]);
 
   // Generate headers (Column 1, Column 2, etc.)
   const headers = useMemo(() => {
@@ -130,6 +173,14 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
       } else {
         // Multiple cells selected, start new selection
         setSelectedCells([{ row: rowIndex, col: colIndex }]);
+      }
+    } else if (alignMode) {
+      if (selectedCells.some(cell => cell.row === rowIndex && cell.col === colIndex)) {
+        // Deselect
+        setSelectedCells(prev => prev.filter(cell => !(cell.row === rowIndex && cell.col === colIndex)));
+      } else {
+        // Select
+        setSelectedCells(prev => [...prev, { row: rowIndex, col: colIndex }]);
       }
     } else {
       // Normal mode: start editing the clicked cell
@@ -299,8 +350,20 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
     setEditingCell(null);
     setSelectedCells([]);
     setMergeMode(false);
+    setAlignMode(false);
     setMergedCells([]);
     toast({ title: "Cleared", description: "Table data cleared." });
+  };
+
+  // Apply alignment to selected cells
+  const handleApplyAlignment = () => {
+    const newStyles = [...cellStyles];
+    selectedCells.forEach(({row, col}) => {
+      newStyles[row][col].textAlign = selectedAlignment;
+    });
+    setCellStyles(newStyles);
+    setSelectedCells([]);
+    toast({ title: "Alignment Applied", description: `Applied ${selectedAlignment} alignment to selected cells.` });
   };
 
   // Update table styling configuration
@@ -309,19 +372,19 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
   };
 
   return (
-    <Card className="shadow-lg">
-      <CardHeader>
-        <CardTitle className="font-headline flex items-center">
-          <Grid3X3 className="h-6 w-6 mr-2" /> Visual Table JSON Compiler
+    <Card className="shadow-2xl bg-gradient-to-br from-card via-card to-card/95 backdrop-blur-sm border-0">
+      <CardHeader className="pb-4">
+        <CardTitle className="font-headline flex items-center text-xl">
+          <Grid3X3 className="h-7 w-7 mr-3 text-primary" /> Visual Table JSON Compiler
         </CardTitle>
-        <CardDescription>
+        <CardDescription className="text-sm">
           Click on cells to edit! Super simple visual table editor for vibe coders.
         </CardDescription>
       </CardHeader>
 
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-3 px-6 pb-6">
         {/* Table Configuration */}
-        <div className="bg-muted/50 rounded-lg p-4 mb-4">
+        <div className="bg-muted/50 rounded-lg p-3 mb-2">
           <h3 className="font-medium text-lg mb-3 flex items-center">
             <Grid3X3 className="h-5 w-5 mr-2 text-primary" />
             Table Dimensions
@@ -403,7 +466,7 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
         </div>
 
         {/* Basic Info */}
-        <div className="bg-muted/50 rounded-lg p-4">
+        <div className="bg-muted/50 rounded-lg p-3">
           <h3 className="font-medium text-lg mb-3 flex items-center">
             <span className="bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center text-xs mr-2">#</span>
             Table Information
@@ -445,7 +508,7 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
 
         {/* Styling Controls */}
         {tableCreated && (
-          <div className="bg-muted/50 rounded-lg p-4">
+          <div className="bg-muted/50 rounded-lg p-3">
             <h3 className="font-medium text-lg mb-3 flex items-center">
               <span className="bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center text-xs mr-2">S</span>
               Styling Options
@@ -746,12 +809,44 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
                     Merge Mode
                   </Label>
                 </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="align-mode"
+                    checked={alignMode}
+                    onChange={(e) => {
+                      setAlignMode(e.target.checked);
+                      setSelectedCells([]);
+                    }}
+                    className="rounded"
+                  />
+                  <Label htmlFor="align-mode" className="text-sm cursor-pointer">
+                    Align Mode
+                  </Label>
+                </div>
               </div>
               <div className="flex gap-2">
                 {mergeMode && selectedCells.length === 2 && (
                   <Button onClick={handleMergeCells} size="sm" variant="outline">
                     <Merge className="h-4 w-4 mr-2" /> Merge Selected
                   </Button>
+                )}
+                {alignMode && selectedCells.length > 0 && (
+                  <>
+                    <Select value={selectedAlignment} onValueChange={setSelectedAlignment}>
+                      <SelectTrigger className="w-32">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="left">Left</SelectItem>
+                        <SelectItem value="center">Center</SelectItem>
+                        <SelectItem value="right">Right</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button onClick={handleApplyAlignment} size="sm" variant="outline">
+                      Apply Align
+                    </Button>
+                  </>
                 )}
                 <Button
                   onClick={() => setShowPreview(!showPreview)}
@@ -899,6 +994,11 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
               {selectedCells.length === 1 && "Click an adjacent cell to merge"}
               {selectedCells.length === 2 && "Click 'Merge Selected' to combine cells"}
               {selectedCells.length > 2 && "Too many cells selected - click a cell to start over"}
+            </p>
+          )}
+          {alignMode && (
+            <p className="text-xs text-muted-foreground mt-2 px-1 py-1 bg-muted/50 rounded">
+              Click cells to select for align
             </p>
           )}
         </div>
