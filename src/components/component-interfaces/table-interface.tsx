@@ -23,14 +23,12 @@ export interface VisualTableData {
   type: "table";
   id: string;
   title?: string;
-  headers: string[];
   data: string[][];
   mergedCells?: MergedCell[];
   alignment?: 'left' | 'center' | 'right' | 'justify';
   metadata: {
     totalRows: number;
     totalColumns: number;
-    generatedAt: string;
   };
 }
 
@@ -138,8 +136,8 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
     }
   }, [rows, columns, cellStyles.length, tableCreated]);
 
-  // Generate headers (Column 1, Column 2, etc.)
-  const headers = useMemo(() => {
+  // Generate column labels for display
+  const columnLabels = useMemo(() => {
     return Array(columns).fill('').map((_, i) => `Column ${i + 1}`);
   }, [columns]);
 
@@ -255,19 +253,12 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
       return;
     }
 
-    // Use first row as headers if they're filled, otherwise use default headers
-    const firstRow = tableData[0] || [];
-    const hasCustomHeaders = firstRow.some(cell => cell.trim() !== '');
-
-    const finalHeaders = hasCustomHeaders ? firstRow : headers;
-    const finalData = hasCustomHeaders ? tableData.slice(1) : tableData;
-
-    // Filter out empty rows
-    const filteredData = finalData.filter(row =>
+    // Use all rows as data (no separate headers)
+    const finalData = tableData.filter(row =>
       row.some(cell => cell.trim() !== '')
     );
 
-    if (filteredData.length === 0) {
+    if (finalData.length === 0) {
       toast({ title: "Error", description: "Please enter some data in the table.", variant: "destructive" });
       return;
     }
@@ -276,13 +267,11 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
       type: "table",
       id: tableId.trim(),
       ...(useTableTitle && { title: tableTitle.trim() || `Table ${tableId}` }),
-      headers: finalHeaders,
-      data: filteredData,
+      data: finalData,
       mergedCells: mergedCells,
       metadata: {
-        totalRows: filteredData.length,
-        totalColumns: finalHeaders.length,
-        generatedAt: new Date().toISOString()
+        totalRows: finalData.length,
+        totalColumns: finalData[0]?.length || 0
       }
     };
 
@@ -613,7 +602,7 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
                    borderWidth: tableStyling.borderWidth,
                    borderStyle: tableStyling.borderWidth > 0 ? 'solid' : 'none'
                  }}>#</TableHead>
-                 {headers.map((header, colIndex) => (
+                 {columnLabels.map((label: string, colIndex: number) => (
                    <TableHead
                      key={colIndex}
                      className="text-center p-2 min-w-[100px] relative font-medium border-r last:border-r-0"
@@ -625,7 +614,7 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
                      }}
                    >
                      <div className="flex items-center justify-between">
-                       <span className="truncate text-xs">{header}</span>
+                       <span className="truncate text-xs">{label}</span>
                        <Button
                          variant="ghost"
                          size="icon"
@@ -760,7 +749,7 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
                 }}>
                   <TableHeader style={{ backgroundColor: tableStyling.customHeaderBackgroundColor }}>
                     <TableRow>
-                      {headers.map((header, index) => (
+                      {columnLabels.map((label: string, index: number) => (
                         <TableHead
                           key={index}
                           className="text-xs font-medium p-2 border-r last:border-r-0"
@@ -771,7 +760,7 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
                             borderStyle: tableStyling.borderWidth > 0 ? 'solid' : 'none'
                           }}
                         >
-                          {header}
+                          {label}
                         </TableHead>
                       ))}
                     </TableRow>
@@ -822,7 +811,7 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
                 </Table>
               </div>
               <p className="text-xs text-muted-foreground mt-2">
-                {tableData.length} rows × {headers.length} columns
+                {tableData.length} rows × {columns} columns
               </p>
             </CardContent>
           </Card>

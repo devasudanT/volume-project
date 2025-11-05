@@ -21,13 +21,11 @@ export interface VisualTableData {
   type: "table";
   id: string;
   title?: string;
-  headers: string[];
   data: string[][];
   mergedCells?: MergedCell[];
   metadata: {
     totalRows: number;
     totalColumns: number;
-    generatedAt: string;
   };
 }
 
@@ -61,8 +59,8 @@ export function TableCompiler({ setJsonOutputs }: TableCompilerProps) {
     }
   }, [rows, columns, tableData.length]);
 
-  // Generate headers (Column 1, Column 2, etc.)
-  const headers = useMemo(() => {
+  // Generate column labels for display
+  const columnLabels = useMemo(() => {
     return Array(columns).fill('').map((_, i) => `Column ${i + 1}`);
   }, [columns]);
 
@@ -170,19 +168,12 @@ export function TableCompiler({ setJsonOutputs }: TableCompilerProps) {
       return;
     }
 
-    // Use first row as headers if they're filled, otherwise use default headers
-    const firstRow = tableData[0] || [];
-    const hasCustomHeaders = firstRow.some(cell => cell.trim() !== '');
-
-    const finalHeaders = hasCustomHeaders ? firstRow : headers;
-    const finalData = hasCustomHeaders ? tableData.slice(1) : tableData;
-
-    // Filter out empty rows
-    const filteredData = finalData.filter(row =>
+    // Use all rows as data (no separate headers)
+    const finalData = tableData.filter(row =>
       row.some(cell => cell.trim() !== '')
     );
 
-    if (filteredData.length === 0) {
+    if (finalData.length === 0) {
       toast({ title: "Error", description: "Please enter some data in the table.", variant: "destructive" });
       return;
     }
@@ -191,13 +182,11 @@ export function TableCompiler({ setJsonOutputs }: TableCompilerProps) {
       type: "table",
       id: tableId.trim(),
       ...(useTableTitle && { title: tableTitle.trim() || `Table ${tableId}` }),
-      headers: finalHeaders,
-      data: filteredData,
+      data: finalData,
       mergedCells: mergedCells,
       metadata: {
-        totalRows: filteredData.length,
-        totalColumns: finalHeaders.length,
-        generatedAt: new Date().toISOString()
+        totalRows: finalData.length,
+        totalColumns: finalData[0]?.length || 0
       }
     };
 
@@ -385,10 +374,10 @@ export function TableCompiler({ setJsonOutputs }: TableCompilerProps) {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-16 text-center">#</TableHead>
-                  {headers.map((header, colIndex) => (
+                  {columnLabels.map((label: string, colIndex: number) => (
                     <TableHead key={colIndex} className="text-center min-w-[120px] relative">
                       <div className="flex items-center justify-center gap-1">
-                        <span className="truncate">{header}</span>
+                        <span className="truncate">{label}</span>
                         <Button
                           variant="ghost"
                           size="sm"
@@ -484,13 +473,6 @@ export function TableCompiler({ setJsonOutputs }: TableCompilerProps) {
             <CardContent>
               <div className="overflow-x-auto">
                 <Table>
-                  <TableHeader>
-                    <TableRow>
-                      {headers.map((header, index) => (
-                        <TableHead key={index}>{header}</TableHead>
-                      ))}
-                    </TableRow>
-                  </TableHeader>
                   <TableBody>
                     {tableData.map((row, rowIndex) => (
                       <TableRow key={rowIndex}>
@@ -503,7 +485,7 @@ export function TableCompiler({ setJsonOutputs }: TableCompilerProps) {
                 </Table>
               </div>
               <p className="text-sm text-muted-foreground mt-2">
-                {tableData.length} rows × {headers.length} columns
+                {tableData.length} rows × {columns} columns
               </p>
             </CardContent>
           </Card>
