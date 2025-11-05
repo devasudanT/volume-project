@@ -66,7 +66,7 @@ export function TableCompiler({ setJsonOutputs }: TableCompilerProps) {
     return Array(columns).fill('').map((_, i) => `Column ${i + 1}`);
   }, [columns]);
 
-  // Handle cell click - edit or select based on merge mode
+  // Handle cell click - edit or select based on mode
   const handleCellClick = (rowIndex: number, colIndex: number) => {
     // If already editing a cell, finish editing first
     if (editingCell) {
@@ -343,30 +343,19 @@ export function TableCompiler({ setJsonOutputs }: TableCompilerProps) {
         {/* Visual Table Editor */}
         <div>
           <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-4">
-              <Label>Click cells to edit:</Label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="merge-mode"
-                  checked={mergeMode}
-                  onChange={(e) => {
-                    setMergeMode(e.target.checked);
-                    setSelectedCells([]);
-                  }}
-                  className="rounded"
-                />
-                <Label htmlFor="merge-mode" className="text-sm cursor-pointer">
-                  Merge Mode
-                </Label>
-              </div>
+            <div className="flex items-center gap-2">
+                <Label className="text-sm font-medium">Click cells to select for:</Label>
+                <div className="flex items-center gap-1 p-1 rounded-md bg-muted">
+                    <Button size="sm" variant={mergeMode ? 'secondary' : 'ghost'} onClick={() => {
+                        setMergeMode(!mergeMode);
+                        setSelectedCells([]);
+                    }}>
+                        <Merge className="h-4 w-4 mr-1" />
+                        Merge
+                    </Button>
+                </div>
             </div>
             <div className="flex gap-2">
-              {mergeMode && selectedCells.length === 2 && (
-                <Button onClick={handleMergeCells} size="sm" variant="outline">
-                  <Merge className="h-4 w-4 mr-2" /> Merge Selected
-                </Button>
-              )}
               <Button
                 onClick={() => setShowPreview(!showPreview)}
                 variant="outline"
@@ -377,6 +366,20 @@ export function TableCompiler({ setJsonOutputs }: TableCompilerProps) {
               </Button>
             </div>
           </div>
+
+          {mergeMode && (
+            <Card className="my-2">
+                <CardContent className="p-3 flex items-center gap-4">
+                    <p className="text-sm text-muted-foreground flex-grow">
+                        {selectedCells.length === 0 ? "Select cells to merge." : selectedCells.length === 1 ? "Select an adjacent cell." : "Click button to merge."}
+                    </p>
+                    <Button onClick={handleMergeCells} size="sm" variant="outline" disabled={selectedCells.length < 2}>
+                        <Merge className="h-4 w-4 mr-2" /> Merge Selected
+                    </Button>
+                </CardContent>
+            </Card>
+          )}
+
           <div className="mt-2 border rounded-lg overflow-hidden">
             <Table>
               <TableHeader>
@@ -470,14 +473,6 @@ export function TableCompiler({ setJsonOutputs }: TableCompilerProps) {
               </TableBody>
             </Table>
           </div>
-          {mergeMode && (
-            <p className="text-xs text-muted-foreground mt-1">
-              {selectedCells.length === 0 && "Click cells to select for merging"}
-              {selectedCells.length === 1 && "Click an adjacent cell to merge"}
-              {selectedCells.length === 2 && "Click 'Merge Selected' to combine cells"}
-              {selectedCells.length > 2 && "Too many cells selected - click a cell to start over"}
-            </p>
-          )}
         </div>
 
         {/* Table Preview */}

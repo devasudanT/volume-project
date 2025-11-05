@@ -505,273 +505,9 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
             </div>
           </div>
         </div>
+      </CardContent>
 
-        {/* Styling Controls */}
-        {tableCreated && (
-          <div className="bg-muted/50 rounded-lg p-3">
-            <h3 className="font-medium text-lg mb-3 flex items-center">
-              <span className="bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center text-xs mr-2">S</span>
-              Styling Options
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Text Color */}
-              <div className="space-y-2">
-                <Label htmlFor="text-color">Text Color</Label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    id="text-color"
-                    value={tableStyling.customTextColor}
-                    onChange={(e) => updateTableStyling({ customTextColor: e.target.value })}
-                    className="w-12 h-10 rounded-md border border-input cursor-pointer"
-                  />
-                  <Input
-                    type="text"
-                    value={tableStyling.customTextColor}
-                    onChange={(e) => updateTableStyling({ customTextColor: e.target.value })}
-                    className="flex-1"
-                    placeholder="#000000"
-                  />
-                </div>
-              </div>
-
-              {/* Background Color */}
-              <div className="space-y-2">
-                <Label htmlFor="bg-color">Background Color</Label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    id="bg-color"
-                    value={tableStyling.customBackgroundColor}
-                    onChange={(e) => updateTableStyling({ customBackgroundColor: e.target.value })}
-                    className="w-12 h-10 rounded-md border border-input cursor-pointer"
-                  />
-                  <Input
-                    type="text"
-                    value={tableStyling.customBackgroundColor}
-                    onChange={(e) => updateTableStyling({ customBackgroundColor: e.target.value })}
-                    className="flex-1"
-                    placeholder="#ffffff"
-                  />
-                </div>
-              </div>
-
-              {/* Border Color */}
-              <div className="space-y-2">
-                <Label htmlFor="border-color">Border Color</Label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    id="border-color"
-                    value={tableStyling.customBorderColor}
-                    onChange={(e) => updateTableStyling({ customBorderColor: e.target.value })}
-                    className="w-12 h-10 rounded-md border border-input cursor-pointer"
-                  />
-                  <Input
-                    type="text"
-                    value={tableStyling.customBorderColor}
-                    onChange={(e) => updateTableStyling({ customBorderColor: e.target.value })}
-                    className="flex-1"
-                    placeholder="#e5e5e5"
-                  />
-                </div>
-              </div>
-
-              {/* Border Width */}
-              <div className="space-y-2">
-                <Label htmlFor="border-width">Border Width</Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    id="border-width"
-                    type="range"
-                    min="0"
-                    max="4"
-                    step="1"
-                    value={tableStyling.borderWidth}
-                    onChange={(e) => updateTableStyling({ borderWidth: parseInt(e.target.value) })}
-                    className="flex-1"
-                  />
-                  <span className="w-10 text-center">{tableStyling.borderWidth}px</span>
-                </div>
-              </div>
-
-              {/* Header Background */}
-              <div className="space-y-2">
-                <Label htmlFor="header-bg">Header Background</Label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    id="header-bg"
-                    value={tableStyling.customHeaderBackgroundColor}
-                    onChange={(e) => updateTableStyling({ customHeaderBackgroundColor: e.target.value })}
-                    className="w-12 h-10 rounded-md border border-input cursor-pointer"
-                  />
-                  <Input
-                    type="text"
-                    value={tableStyling.customHeaderBackgroundColor}
-                    onChange={(e) => updateTableStyling({ customHeaderBackgroundColor: e.target.value })}
-                    className="flex-1"
-                    placeholder="#f5f5f5"
-                  />
-                </div>
-              </div>
-
-              {/* Header Text Color */}
-              <div className="space-y-2">
-                <Label htmlFor="header-text">Header Text Color</Label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    id="header-text"
-                    value={tableStyling.customHeaderTextColor}
-                    onChange={(e) => updateTableStyling({ customHeaderTextColor: e.target.value })}
-                    className="w-12 h-10 rounded-md border border-input cursor-pointer"
-                  />
-                  <Input
-                    type="text"
-                    value={tableStyling.customHeaderTextColor}
-                    onChange={(e) => updateTableStyling({ customHeaderTextColor: e.target.value })}
-                    className="flex-1"
-                    placeholder="#000000"
-                  />
-                </div>
-              </div>
-
-              {/* Row Striping */}
-              <div className="space-y-2 md:col-span-2">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="row-striping"
-                    checked={tableStyling.rowStriping}
-                    onChange={(e) => updateTableStyling({ rowStriping: e.target.checked })}
-                    className="rounded"
-                  />
-                  <Label htmlFor="row-striping" className="cursor-pointer">
-                    Enable Row Striping
-                  </Label>
-                </div>
-                {tableStyling.rowStriping && (
-                  <div className="mt-2">
-                    <Label htmlFor="stripe-color">Stripe Color</Label>
-                    <div className="flex items-center gap-2 mt-1">
-                      <input
-                        type="color"
-                        id="stripe-color"
-                        value={tableStyling.customStripeColor}
-                        onChange={(e) => updateTableStyling({ customStripeColor: e.target.value })}
-                        className="w-12 h-10 rounded-md border border-input cursor-pointer"
-                      />
-                      <Input
-                        type="text"
-                        value={tableStyling.customStripeColor}
-                        onChange={(e) => updateTableStyling({ customStripeColor: e.target.value })}
-                        className="flex-1"
-                        placeholder="#f0f0f0"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            {/* Preset Styling Options */}
-            <div className="mt-4 pt-4 border-t border-muted">
-              <h4 className="font-medium text-md mb-2">Preset Styles</h4>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => updateTableStyling({
-                    textColor: 'text-foreground',
-                    backgroundColor: 'bg-background',
-                    borderColor: 'border-border',
-                    borderWidth: 1,
-                    headerBackgroundColor: 'bg-muted',
-                    headerTextColor: 'text-foreground',
-                    rowStriping: false,
-                    stripeColor: 'bg-muted/50',
-                    customTextColor: '#333333',
-                    customBackgroundColor: '#F5F5F5',
-                    customBorderColor: '#D9D9D9',
-                    customHeaderBackgroundColor: '#E6E6E6',
-                    customHeaderTextColor: '#333333',
-                    customStripeColor: '#EDEDED'
-                  })}
-                >
-                  Default
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => updateTableStyling({
-                    textColor: 'text-primary-foreground',
-                    backgroundColor: 'bg-primary',
-                    borderColor: 'border-primary',
-                    borderWidth: 2,
-                    headerBackgroundColor: 'bg-primary/90',
-                    headerTextColor: 'text-primary-foreground',
-                    rowStriping: true,
-                    stripeColor: 'bg-primary/80',
-                    customTextColor: '#D8BFD8',
-                    customBackgroundColor: '#D8BFD8',
-                    customBorderColor: '#D8BFD8',
-                    customHeaderBackgroundColor: '#C7AEC7',
-                    customHeaderTextColor: '#D8BFD8',
-                    customStripeColor: '#E0CCE0'
-                  })}
-                >
-                  Primary Theme
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => updateTableStyling({
-                    textColor: 'text-secondary-foreground',
-                    backgroundColor: 'bg-secondary',
-                    borderColor: 'border-secondary',
-                    borderWidth: 1,
-                    headerBackgroundColor: 'bg-secondary/90',
-                    headerTextColor: 'text-secondary-foreground',
-                    rowStriping: false,
-                    stripeColor: 'bg-secondary/50',
-                    customTextColor: '#E6E6FA',
-                    customBackgroundColor: '#E6E6FA',
-                    customBorderColor: '#D4D4F0',
-                    customHeaderBackgroundColor: '#D4D4F0',
-                    customHeaderTextColor: '#E6E6FA',
-                    customStripeColor: '#ECECFA'
-                  })}
-                >
-                  Secondary Theme
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => updateTableStyling({
-                    textColor: 'text-card-foreground',
-                    backgroundColor: 'bg-card',
-                    borderColor: 'border-card',
-                    borderWidth: 4,
-                    headerBackgroundColor: 'bg-card/90',
-                    headerTextColor: 'text-card-foreground',
-                    rowStriping: true,
-                    stripeColor: 'bg-card/50',
-                    customTextColor: '#333333',
-                    customBackgroundColor: '#ffffff',
-                    customBorderColor: '#D9D9D9',
-                    customHeaderBackgroundColor: '#f0f0f0',
-                    customHeaderTextColor: '#333333',
-                    customStripeColor: '#f8f8f8'
-                  })}
-                >
-                  Card Style
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
-
+      <CardContent className="space-y-3 px-6 pb-6">
         {/* Create Table Button */}
         {!tableCreated && (
           <div className="flex flex-col items-center gap-4 py-4">
@@ -793,7 +529,7 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
           <div>
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-4">
-                <Label>Click cells to edit:</Label>
+                <Label className="text-xs">Click cells to edit:</Label>
                 <div className="flex items-center gap-2">
                   <input
                     type="checkbox"
@@ -824,6 +560,7 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
                     Align Mode
                   </Label>
                 </div>
+                {/* Styling Mode removed per request */}
               </div>
               <div className="flex gap-2">
                 {mergeMode && selectedCells.length === 2 && (
@@ -833,7 +570,7 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
                 )}
                 {alignMode && selectedCells.length > 0 && (
                   <>
-                    <Select value={selectedAlignment} onValueChange={setSelectedAlignment}>
+                    <Select value={selectedAlignment} onValueChange={(v) => setSelectedAlignment(v as 'left' | 'center' | 'right')}>
                       <SelectTrigger className="w-32">
                         <SelectValue />
                       </SelectTrigger>
@@ -858,6 +595,9 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
                 </Button>
               </div>
             </div>
+
+            {/* Styling options removed per user request */}
+
           <div className="mt-2 border rounded-lg overflow-hidden shadow-sm">
            <Table className="w-full caption-bottom text-sm" style={{
              backgroundColor: tableStyling.customBackgroundColor,
@@ -989,16 +729,16 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
            </Table>
          </div>
           {mergeMode && (
-            <p className="text-xs text-muted-foreground mt-2 px-1 py-1 bg-muted/50 rounded">
-              {selectedCells.length === 0 && "Click cells to select for merging"}
-              {selectedCells.length === 1 && "Click an adjacent cell to merge"}
-              {selectedCells.length === 2 && "Click 'Merge Selected' to combine cells"}
-              {selectedCells.length > 2 && "Too many cells selected - click a cell to start over"}
+            <p className="text-xs text-muted-foreground mt-1 px-2 py-1 bg-muted/30 rounded text-center">
+              {selectedCells.length === 0 && "Click cells for merge"}
+              {selectedCells.length === 1 && "Click adjacent cell"}
+              {selectedCells.length === 2 && "Click 'Merge Selected'"}
+              {selectedCells.length > 2 && "Too many - restart"}
             </p>
           )}
           {alignMode && (
-            <p className="text-xs text-muted-foreground mt-2 px-1 py-1 bg-muted/50 rounded">
-              Click cells to select for align
+            <p className="text-xs text-muted-foreground mt-1 px-2 py-1 bg-muted/30 rounded text-center">
+              Click cells for align
             </p>
           )}
         </div>
