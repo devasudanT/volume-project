@@ -27,7 +27,7 @@ export interface VisualTableData {
   headers?: string[];
   hasHeaders?: boolean;
   mergedCells?: MergedCell[];
-  alignment?: 'left' | 'center' | 'right' | 'justify';
+  cellAlignments?: { [key: string]: 'left' | 'center' | 'right' };
   metadata: {
     totalRows: number;
     totalColumns: number;
@@ -122,22 +122,29 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
 
   // Initialize cell styles
   React.useEffect(() => {
-    if (cellStyles.length === 0 && tableCreated) {
-      const newStyles = Array(rows).fill(null).map(() =>
-        Array(columns).fill({
-          textColor: '#000000',
-          bgColor: '#ffffff',
-          textAlign: 'left' as 'left',
-          verticalAlign: 'middle' as 'middle',
-          fontStyle: 'normal' as 'normal',
-          fontSize: 12,
-          borderColor: '#e5e5e5',
-          borderWidth: 1
-        })
-      );
-      setCellStyles(newStyles);
+    if (tableCreated) {
+      // Initialize or update cell styles when table size changes
+      setCellStyles(prevStyles => {
+        const newStyles = Array(rows).fill(null).map((_, rowIndex) =>
+          Array(columns).fill(null).map((_, colIndex) => {
+            // Preserve existing styles if they exist, otherwise use defaults
+            const existingStyle = prevStyles[rowIndex]?.[colIndex];
+            return existingStyle || {
+              textColor: '#000000',
+              bgColor: '#ffffff',
+              textAlign: 'left' as 'left',
+              verticalAlign: 'middle' as 'middle',
+              fontStyle: 'normal' as 'normal',
+              fontSize: 12,
+              borderColor: '#e5e5e5',
+              borderWidth: 1
+            };
+          })
+        );
+        return newStyles;
+      });
     }
-  }, [rows, columns, cellStyles.length, tableCreated]);
+  }, [rows, columns, tableCreated]);
 
   // Generate column labels for display
   const columnLabels = useMemo(() => {
@@ -279,6 +286,20 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
       dataRows = finalData;
     }
 
+    // Collect cell alignments
+    const cellAlignments: { [key: string]: 'left' | 'center' | 'right' } = {};
+    
+    // Loop through cellStyles to capture alignment information
+    cellStyles.forEach((rowStyles, rowIndex) => {
+      rowStyles.forEach((cellStyle, colIndex) => {
+        // Only include cells that have non-default alignment (not 'left')
+        if (cellStyle && cellStyle.textAlign && cellStyle.textAlign !== 'left') {
+          const cellKey = `${rowIndex}-${colIndex}`;
+          cellAlignments[cellKey] = cellStyle.textAlign;
+        }
+      });
+    });
+
     const generatedData: VisualTableData = {
       type: "table",
       id: tableId.trim(),
@@ -286,6 +307,7 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
       data: dataRows,
       ...(useHeader && { headers, hasHeaders: true }),
       mergedCells: mergedCells,
+      ...(Object.keys(cellAlignments).length > 0 && { cellAlignments }),
       metadata: {
         totalRows: dataRows.length,
         totalColumns: finalData[0]?.length || 0
@@ -359,18 +381,50 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
     setMergeMode(false);
     setAlignMode(false);
     setMergedCells([]);
+    setCellStyles([]);
     toast({ title: "Cleared", description: "Table data cleared." });
+  };
+
+  // Clear alignments for selected cells
+  const handleClearAlignments = () => {
+    if (selectedCells.length === 0) {
+      toast({ title: "Error", description: "Please select cells to clear alignment.", variant: "destructive" });
+      return;
+    }
+
+    const newStyles = [...cellStyles];
+    selectedCells.forEach(({row, col}) => {
+      if (newStyles[row] && newStyles[row][col]) {
+        newStyles[row][col].textAlign = 'left';
+      }
+    });
+    setCellStyles(newStyles);
+    setSelectedCells([]);
+    toast({
+      title: "Alignment Cleared",
+      description: `Reset alignment for ${selectedCells.length} cell${selectedCells.length > 1 ? 's' : ''}.`
+    });
   };
 
   // Apply alignment to selected cells
   const handleApplyAlignment = () => {
+    if (selectedCells.length === 0) {
+      toast({ title: "Error", description: "Please select cells to apply alignment.", variant: "destructive" });
+      return;
+    }
+
     const newStyles = [...cellStyles];
     selectedCells.forEach(({row, col}) => {
-      newStyles[row][col].textAlign = selectedAlignment;
+      if (newStyles[row] && newStyles[row][col]) {
+        newStyles[row][col].textAlign = selectedAlignment;
+      }
     });
     setCellStyles(newStyles);
     setSelectedCells([]);
-    toast({ title: "Alignment Applied", description: `Applied ${selectedAlignment} alignment to selected cells.` });
+    toast({
+      title: "Alignment Applied",
+      description: `Applied ${selectedAlignment} alignment to ${selectedCells.length} cell${selectedCells.length > 1 ? 's' : ''}.`
+    });
   };
 
   // Update table styling configuration
@@ -602,6 +656,9 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
                     <Button onClick={handleApplyAlignment} size="sm" variant="outline">
                       Apply Align
                     </Button>
+                    <Button onClick={handleClearAlignments} size="sm" variant="outline">
+                      Clear Align
+                    </Button>
                   </>
                 )}
                 <Button
@@ -695,9 +752,9 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
                      
                      // Check if this cell is part of a merge, but not the master cell
                     const isCovered = mergedCells.some(mc =>
-                        rowIndex >= mc.row && rowIndex < mc.row + mc.rowspan &&
-                        colIndex >= mc.col && colIndex < mc.col + mc.colspan &&
-                        (rowIndex !== mc.row || colIndex !== mc.col)
+                       rowIndex >= mc.row && rowIndex < mc.row + mc.rowspan &&
+                       colIndex >= mc.col && colIndex < mc.col + mc.colspan &&
+                       (rowIndex !== mc.row || colIndex !== mc.col)
                     );
 
                     // Don't render covered cells
@@ -707,6 +764,10 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
                        selected.row === rowIndex && selected.col === colIndex
                      );
                      const isEditing = editingCell?.row === rowIndex && editingCell?.col === colIndex;
+
+                     // Get cell style for alignment
+                     const cellStyle = cellStyles[rowIndex]?.[colIndex];
+                     const textAlign = cellStyle?.textAlign || 'left';
 
                      return (
                        <TableCell
@@ -719,7 +780,8 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
                            borderColor: tableStyling.customBorderColor,
                            borderWidth: tableStyling.borderWidth,
                            borderStyle: tableStyling.borderWidth > 0 ? 'solid' : 'none',
-                           backgroundColor: isSelected ? '#dbeafe' : 'transparent'
+                           backgroundColor: isSelected ? '#dbeafe' : 'transparent',
+                           textAlign: textAlign
                          }}
                          onClick={() => handleCellClick(rowIndex, colIndex)}
                        >
@@ -827,6 +889,10 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
                           // Skip rendering the first row if it's headers
                           if (useHeader && rowIndex === 0) return null;
                           
+                          // Get cell style for alignment
+                          const cellStyle = cellStyles[rowIndex]?.[cellIndex];
+                          const textAlign = cellStyle?.textAlign || 'left';
+                          
                           return (
                             <TableCell
                               key={cellIndex}
@@ -837,7 +903,8 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
                                 color: tableStyling.customTextColor,
                                 borderColor: tableStyling.customBorderColor,
                                 borderWidth: tableStyling.borderWidth,
-                                borderStyle: tableStyling.borderWidth > 0 ? 'solid' : 'none'
+                                borderStyle: tableStyling.borderWidth > 0 ? 'solid' : 'none',
+                                textAlign: textAlign
                               }}
                             >
                               {cell || ''}

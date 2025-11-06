@@ -25,6 +25,7 @@ export interface VisualTableData {
   headers?: string[];
   hasHeaders?: boolean;
   mergedCells?: MergedCell[];
+  cellAlignments?: { [key: string]: 'left' | 'center' | 'right' };
   metadata: {
     totalRows: number;
     totalColumns: number;
@@ -512,7 +513,7 @@ export function TableCompiler({ setJsonOutputs }: TableCompilerProps) {
                       return (
                         <TableRow key={rowIndex}>
                           {row.map((cell, cellIndex) => (
-                            <TableCell key={cellIndex}>{cell || ''}</TableCell>
+                            <TableCell key={cellIndex} className="text-xs">{cell || ''}</TableCell>
                           ))}
                         </TableRow>
                       );
