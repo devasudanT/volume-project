@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Play, Plus, Trash2, Table as TableIcon, Grid3X3, Merge, Eye } from 'lucide-react';
+import { Play, Plus, Trash2, Table as TableIcon, Grid3X3, Merge, Eye, TableProperties } from 'lucide-react';
 
 // Visual Table Data Interface with Merge Support
 export interface MergedCell {
@@ -50,6 +50,189 @@ export function TableCompiler({ setJsonOutputs }: TableCompilerProps) {
   const [mergedCells, setMergedCells] = useState<MergedCell[]>([]);
   const [showPreview, setShowPreview] = useState(false);
   const [generatedTable, setGeneratedTable] = useState<VisualTableData | null>(null);
+
+  // Parse clipboard data from Excel/Google Sheets
+  const parseClipboardData = (clipboardText: string): { data: string[][], cellAlignments: { [key: string]: 'left' | 'center' | 'right' }, mergedCells: MergedCell[] } => {
+    // Handle different types of line endings
+    const lines = clipboardText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+    
+    // Filter out empty lines
+    const nonEmptyLines = lines.filter(line => line.trim() !== '');
+    
+    // Parse each line by tabs
+    const tableData = nonEmptyLines.map(line => {
+      // Excel/Google Sheets typically use tabs as delimiters
+      return line.split('\t').map(cell => cell.trim());
+    });
+    
+    // Detect basic formatting patterns
+    const cellAlignments: { [key: string]: 'left' | 'center' | 'right' } = {};
+    const mergedCells: MergedCell[] = [];
+    
+    // Simple heuristic: center-align cells that appear to be headers or centered text
+    tableData.forEach((row, rowIndex) => {
+      row.forEach((cell, colIndex) => {
+        const cellKey = `${rowIndex}-${colIndex}`;
+        
+        // Center align if cell contains all caps or numbers (likely headers or centered content)
+        if (cell.length > 0) {
+          const isAllCaps = cell === cell.toUpperCase() && /[A-Z]/.test(cell);
+          const isOnlyNumbers = /^\s*-?\d+(\.\d+)?\s*$/.test(cell);
+          const isShort = cell.length <= 10 && rowIndex === 0; // Short header-like text in first row
+          
+          if (isAllCaps || isOnlyNumbers || isShort) {
+            cellAlignments[cellKey] = 'center';
+          }
+        }
+      });
+    });
+    
+    // Basic merged cell detection: look for repeated empty cells in patterns
+    for (let rowIndex = 0; rowIndex < tableData.length; rowIndex++) {
+      for (let colIndex = 0; colIndex < tableData[rowIndex].length; colIndex++) {
+        const cell = tableData[rowIndex][colIndex];
+        
+        // If cell is empty, check if it might be part of a merged area
+        if (cell === '') {
+          let colspan = 1;
+          let rowspan = 1;
+          
+          // Check for horizontal merge (empty cells in sequence)
+          while (colIndex + colspan < tableData[rowIndex].length &&
+                 tableData[rowIndex][colIndex + colspan] === '') {
+            colspan++;
+          }
+          
+          // Check for vertical merge (empty cells below)
+          while (rowIndex + rowspan < tableData.length &&
+                 tableData[rowIndex + rowspan] &&
+                 tableData[rowIndex + rowspan][colIndex] === '') {
+            rowspan++;
+          }
+          
+          // If we found a merged area, create a merged cell object
+          if (colspan > 1 || rowspan > 1) {
+            mergedCells.push({
+              row: rowIndex,
+              col: colIndex,
+              rowspan,
+              colspan,
+              id: `merged-${rowIndex}-${colIndex}`
+            });
+            
+            // Fill the merged area with the content from the top-left cell
+            // Find the content from the nearest non-empty cell
+            let content = '';
+            for (let r = rowIndex; r >= 0 && content === ''; r--) {
+              for (let c = colIndex; c >= 0 && content === ''; c--) {
+                if (tableData[r] && tableData[r][c] && tableData[r][c].trim() !== '') {
+                  content = tableData[r][c];
+                  break;
+                }
+              }
+            }
+            
+            if (content) {
+              tableData[rowIndex][colIndex] = content;
+            }
+          }
+        }
+      }
+    }
+    
+    return { data: tableData, cellAlignments, mergedCells };
+  };
+
+  // Handle paste table action
+  const handlePasteTable = async () => {
+    try {
+      // Request clipboard access
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        const clipboardText = await navigator.clipboard.readText();
+        
+        if (!clipboardText.trim()) {
+          toast({
+            title: "No Data",
+            description: "No data found in clipboard.",
+            variant: "destructive"
+          });
+          return;
+        }
+
+        // Parse the clipboard data with formatting detection
+        const { data: parsedDataArray, cellAlignments, mergedCells: detectedMergedCells } = parseClipboardData(clipboardText);
+        
+        if (parsedDataArray.length === 0 || parsedDataArray.every(row => row.length === 0)) {
+          toast({
+            title: "Invalid Data",
+            description: "Clipboard does not contain valid table data.",
+            variant: "destructive"
+          });
+          return;
+        }
+
+        // Find the maximum number of columns in any row
+        const maxColumns = Math.max(...parsedDataArray.map(row => row.length));
+        
+        // Normalize all rows to have the same number of columns
+        const normalizedData = parsedDataArray.map(row => {
+          const normalizedRow = [...row];
+          while (normalizedRow.length < maxColumns) {
+            normalizedRow.push('');
+          }
+          return normalizedRow;
+        });
+
+        // Auto-detect if first row should be headers (check if it contains more text-based content)
+        const hasHeader = normalizedData.length > 1 &&
+          normalizedData[0].some(cell =>
+            cell.length > 0 &&
+            !/^\s*-?\d+(\.\d+)?\s*$/.test(cell) && // Not a number
+            cell.length <= 20 // Reasonable header length
+          );
+
+        // Update table dimensions and data
+        setRows(normalizedData.length);
+        setColumns(maxColumns);
+        setTableData(normalizedData);
+        setUseHeader(hasHeader);
+        setMergedCells(detectedMergedCells);
+
+        // Auto-generate table ID if not set
+        if (!tableId.trim()) {
+          const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+          setTableId(`pasted-table-${timestamp}`);
+        }
+
+        // Auto-generate table title if not set
+        if (useTableTitle && !tableTitle.trim()) {
+          setTableTitle(`Pasted Table ${new Date().toLocaleDateString()}`);
+        }
+
+        const formatPreserved = Object.keys(cellAlignments).length > 0 || detectedMergedCells.length > 0;
+
+        toast({
+          title: "Table Pasted Successfully!",
+          description: `Pasted ${normalizedData.length} rows × ${maxColumns} columns${hasHeader ? ' (with headers)' : ''}${formatPreserved ? ' with preserved formatting' : ''}.`
+        });
+
+      } else {
+        // Fallback for older browsers
+        toast({
+          title: "Clipboard Access Not Supported",
+          description: "Your browser doesn't support direct clipboard access. Please manually copy the table data.",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Error accessing clipboard:', error);
+      toast({
+        title: "Clipboard Access Failed",
+        description: "Could not access clipboard data. Please ensure you have granted permission.",
+        variant: "destructive"
+      });
+    }
+  };
 
   const { toast } = useToast();
 
@@ -538,6 +721,12 @@ export function TableCompiler({ setJsonOutputs }: TableCompilerProps) {
             disabled={!generatedTable}
           >
             <Plus className="h-4 w-4 mr-2" /> Add to Main Output
+          </Button>
+          <Button
+            onClick={handlePasteTable}
+            variant="outline"
+          >
+            <TableProperties className="h-4 w-4 mr-2" /> Paste Table
           </Button>
           <Button variant="outline" onClick={handleClearTable}>
             <Trash2 className="h-4 w-4 mr-2" /> Clear

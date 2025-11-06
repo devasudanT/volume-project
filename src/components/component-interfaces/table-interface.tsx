@@ -7,7 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Play, Plus, Trash2, Grid3X3, Merge, Eye, AlignLeft, AlignCenter, AlignRight, AlignJustify, Bold, Italic, Underline, Copy, Scissors, ClipboardPaste, RotateCcw } from 'lucide-react';
+import { Play, Plus, Trash2, Grid3X3, Merge, Eye, AlignLeft, AlignCenter, AlignRight, AlignJustify, Bold, Italic, Underline, Copy, Scissors, ClipboardPaste, RotateCcw, TableProperties } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 
 // Visual Table Data Interface with Merge Support
@@ -107,6 +107,9 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
   const [alignMode, setAlignMode] = useState(false);
 
   const [selectedAlignment, setSelectedAlignment] = useState<'left' | 'center' | 'right'>('left');
+
+  // Paste table functionality
+  const [pasteMode, setPasteMode] = useState(false);
 
   const { toast } = useToast();
 
@@ -432,6 +435,208 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
     setTableStyling(prev => ({ ...prev, ...newStyling }));
   };
 
+  // Parse clipboard data from Excel/Google Sheets
+  const parseClipboardData = (clipboardText: string): { data: string[][], cellAlignments: { [key: string]: 'left' | 'center' | 'right' }, mergedCells: MergedCell[] } => {
+    // Handle different types of line endings
+    const lines = clipboardText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+    
+    // Filter out empty lines
+    const nonEmptyLines = lines.filter(line => line.trim() !== '');
+    
+    // Parse each line by tabs
+    const tableData = nonEmptyLines.map(line => {
+      // Excel/Google Sheets typically use tabs as delimiters
+      return line.split('\t').map(cell => cell.trim());
+    });
+    
+    // Detect basic formatting patterns
+    const cellAlignments: { [key: string]: 'left' | 'center' | 'right' } = {};
+    const mergedCells: MergedCell[] = [];
+    
+    // Simple heuristic: center-align cells that appear to be headers or centered text
+    tableData.forEach((row, rowIndex) => {
+      row.forEach((cell, colIndex) => {
+        const cellKey = `${rowIndex}-${colIndex}`;
+        
+        // Center align if cell contains all caps or numbers (likely headers or centered content)
+        if (cell.length > 0) {
+          const isAllCaps = cell === cell.toUpperCase() && /[A-Z]/.test(cell);
+          const isOnlyNumbers = /^\s*-?\d+(\.\d+)?\s*$/.test(cell);
+          const isShort = cell.length <= 10 && rowIndex === 0; // Short header-like text in first row
+          
+          if (isAllCaps || isOnlyNumbers || isShort) {
+            cellAlignments[cellKey] = 'center';
+          }
+        }
+      });
+    });
+    
+    // Basic merged cell detection: look for repeated empty cells in patterns
+    for (let rowIndex = 0; rowIndex < tableData.length; rowIndex++) {
+      for (let colIndex = 0; colIndex < tableData[rowIndex].length; colIndex++) {
+        const cell = tableData[rowIndex][colIndex];
+        
+        // If cell is empty, check if it might be part of a merged area
+        if (cell === '') {
+          let colspan = 1;
+          let rowspan = 1;
+          
+          // Check for horizontal merge (empty cells in sequence)
+          while (colIndex + colspan < tableData[rowIndex].length &&
+                 tableData[rowIndex][colIndex + colspan] === '') {
+            colspan++;
+          }
+          
+          // Check for vertical merge (empty cells below)
+          while (rowIndex + rowspan < tableData.length &&
+                 tableData[rowIndex + rowspan] &&
+                 tableData[rowIndex + rowspan][colIndex] === '') {
+            rowspan++;
+          }
+          
+          // If we found a merged area, create a merged cell object
+          if (colspan > 1 || rowspan > 1) {
+            mergedCells.push({
+              row: rowIndex,
+              col: colIndex,
+              rowspan,
+              colspan,
+              id: `merged-${rowIndex}-${colIndex}`
+            });
+            
+            // Fill the merged area with the content from the top-left cell
+            // Find the content from the nearest non-empty cell
+            let content = '';
+            for (let r = rowIndex; r >= 0 && content === ''; r--) {
+              for (let c = colIndex; c >= 0 && content === ''; c--) {
+                if (tableData[r] && tableData[r][c] && tableData[r][c].trim() !== '') {
+                  content = tableData[r][c];
+                  break;
+                }
+              }
+            }
+            
+            if (content) {
+              tableData[rowIndex][colIndex] = content;
+            }
+          }
+        }
+      }
+    }
+    
+    return { data: tableData, cellAlignments, mergedCells };
+  };
+
+  // Handle paste table action
+  const handlePasteTable = async () => {
+    try {
+      // Request clipboard access
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        const clipboardText = await navigator.clipboard.readText();
+        
+        if (!clipboardText.trim()) {
+          toast({
+            title: "No Data",
+            description: "No data found in clipboard.",
+            variant: "destructive"
+          });
+          return;
+        }
+
+        // Parse the clipboard data with formatting detection
+        const { data: parsedData, cellAlignments, mergedCells: detectedMergedCells } = parseClipboardData(clipboardText);
+        
+        if (parsedData.length === 0 || parsedData.every(row => row.length === 0)) {
+          toast({
+            title: "Invalid Data",
+            description: "Clipboard does not contain valid table data.",
+            variant: "destructive"
+          });
+          return;
+        }
+
+        // Find the maximum number of columns in any row
+        const maxColumns = Math.max(...parsedData.map(row => row.length));
+        
+        // Normalize all rows to have the same number of columns
+        const normalizedData = parsedData.map(row => {
+          const normalizedRow = [...row];
+          while (normalizedRow.length < maxColumns) {
+            normalizedRow.push('');
+          }
+          return normalizedRow;
+        });
+
+        // Auto-detect if first row should be headers (check if it contains more text-based content)
+        const hasHeader = normalizedData.length > 1 &&
+          normalizedData[0].some(cell =>
+            cell.length > 0 &&
+            !/^\s*-?\d+(\.\d+)?\s*$/.test(cell) && // Not a number
+            cell.length <= 20 // Reasonable header length
+          );
+
+        // Update table dimensions and data
+        setRows(normalizedData.length);
+        setColumns(maxColumns);
+        setTableData(normalizedData);
+        setUseHeader(hasHeader);
+        setTableCreated(true);
+        setMergedCells(detectedMergedCells);
+
+        // Update cell styles with detected alignments
+        const newCellStyles = normalizedData.map((row, rowIndex) =>
+          row.map((_, colIndex) => {
+            const alignment = cellAlignments[`${rowIndex}-${colIndex}`];
+            return {
+              textColor: '#000000',
+              bgColor: '#ffffff',
+              textAlign: alignment || 'left',
+              verticalAlign: 'middle' as 'middle',
+              fontStyle: 'normal' as 'normal',
+              fontSize: 12,
+              borderColor: '#e5e5e5',
+              borderWidth: 1
+            };
+          })
+        );
+        setCellStyles(newCellStyles);
+
+        // Auto-generate table ID if not set
+        if (!tableId.trim()) {
+          const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+          setTableId(`pasted-table-${timestamp}`);
+        }
+
+        // Auto-generate table title if not set
+        if (useTableTitle && !tableTitle.trim()) {
+          setTableTitle(`Pasted Table ${new Date().toLocaleDateString()}`);
+        }
+
+        const formatPreserved = Object.keys(cellAlignments).length > 0 || detectedMergedCells.length > 0;
+        
+        toast({
+          title: "Table Pasted Successfully!",
+          description: `Pasted ${normalizedData.length} rows × ${maxColumns} columns${hasHeader ? ' (with headers)' : ''}${formatPreserved ? ' with preserved formatting' : ''}.`
+        });
+
+      } else {
+        // Fallback for older browsers
+        toast({
+          title: "Clipboard Access Not Supported",
+          description: "Your browser doesn't support direct clipboard access. Please manually copy the table data.",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Error accessing clipboard:', error);
+      toast({
+        title: "Clipboard Access Failed",
+        description: "Could not access clipboard data. Please ensure you have granted permission.",
+        variant: "destructive"
+      });
+    }
+  };
+
   return (
     <Card className="shadow-2xl bg-gradient-to-br from-card via-card to-card/95 backdrop-blur-sm border-0">
       <CardHeader className="pb-4">
@@ -581,18 +786,28 @@ export function TableCompiler({ setJsonOutputs }: TableInterfaceProps) {
       </CardContent>
 
       <CardContent className="space-y-3 px-6 pb-6">
-        {/* Create Table Button */}
+        {/* Table Creation Options */}
         {!tableCreated && (
           <div className="flex flex-col items-center gap-4 py-4">
-            <Button
-              onClick={() => setTableCreated(true)}
-              className="w-full max-w-xs"
-              disabled={rows < 1 || columns < 1}
-            >
-              <Grid3X3 className="h-4 w-4 mr-2" /> Create Table
-            </Button>
-            <p className="text-sm text-muted-foreground">
-              Enter rows and columns above, then click "Create Table" to proceed
+            <div className="flex flex-col sm:flex-row gap-3 w-full max-w-md">
+              <Button
+                onClick={() => setTableCreated(true)}
+                className="flex-1"
+                disabled={rows < 1 || columns < 1}
+              >
+                <Grid3X3 className="h-4 w-4 mr-2" /> Create Table
+              </Button>
+              <Button
+                onClick={handlePasteTable}
+                variant="outline"
+                className="flex-1"
+              >
+                <TableProperties className="h-4 w-4 mr-2" /> Paste Table
+              </Button>
+            </div>
+            <p className="text-sm text-muted-foreground text-center">
+              <span className="block">Use "Paste Table" to import from Excel/Google Sheets</span>
+              <span className="block">Or set dimensions and click "Create Table" for manual setup</span>
             </p>
           </div>
         )}
