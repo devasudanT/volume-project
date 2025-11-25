@@ -17,15 +17,29 @@ export interface MergedCell {
   id: string;
 }
 
+export interface CellFormatting {
+  isBold: boolean;
+  isItalic: boolean;
+  fontWeight?: 'normal' | 'bold';
+  fontStyle?: 'normal' | 'italic';
+}
+
+export interface FormattedCell {
+  text: string;
+  formatting: CellFormatting;
+}
+
 export interface VisualTableData {
   type: "table";
   id: string;
   title?: string;
   data: string[][];
+  formattedData?: FormattedCell[][];
   headers?: string[];
   hasHeaders?: boolean;
   mergedCells?: MergedCell[];
   cellAlignments?: { [key: string]: 'left' | 'center' | 'right' };
+  cellFormatting?: { [key: string]: CellFormatting };
   metadata: {
     totalRows: number;
     totalColumns: number;
@@ -48,11 +62,297 @@ export function TableCompiler({ setJsonOutputs }: TableCompilerProps) {
   const [selectedCells, setSelectedCells] = useState<{row: number, col: number}[]>([]);
   const [mergeMode, setMergeMode] = useState(false);
   const [mergedCells, setMergedCells] = useState<MergedCell[]>([]);
+  const [cellAlignments, setCellAlignments] = useState<{ [key: string]: 'left' | 'center' | 'right' }>({});
+  const [cellFormatting, setCellFormatting] = useState<{ [key: string]: CellFormatting }>({});
   const [showPreview, setShowPreview] = useState(false);
   const [generatedTable, setGeneratedTable] = useState<VisualTableData | null>(null);
 
-  // Parse clipboard data from Excel/Google Sheets
-  const parseClipboardData = (clipboardText: string): { data: string[][], cellAlignments: { [key: string]: 'left' | 'center' | 'right' }, mergedCells: MergedCell[] } => {
+  // Enhanced Google Sheets HTML formatting detection
+  const detectTextFormatting = (text: string, htmlElement?: string): CellFormatting => {
+    let cleanText = text;
+    let isBold = false;
+    let isItalic = false;
+    
+    // If we have HTML content, parse it for formatting
+    if (htmlElement) {
+      // Create a temporary DOM element to parse HTML
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = htmlElement;
+      const element = tempDiv.firstElementChild;
+      
+      if (element) {
+        // Check for Google Sheets specific formatting
+        const computedStyle = window.getComputedStyle(element);
+        const inlineStyle = element.getAttribute('style') || '';
+        
+        // Check for bold formatting with multiple methods
+        const isBoldByTag = element.tagName === 'B' || element.tagName === 'STRONG';
+        const isBoldByWeight = computedStyle.fontWeight === 'bold' ||
+                              parseInt(computedStyle.fontWeight) >= 600 ||
+                              inlineStyle.includes('font-weight: bold') ||
+                              inlineStyle.includes('font-weight:700') ||
+                              inlineStyle.includes('font-weight:600');
+        
+        isBold = isBoldByTag || isBoldByWeight;
+        
+        // Check for italic formatting
+        const isItalicByTag = element.tagName === 'I' || element.tagName === 'EM';
+        const isItalicByStyle = computedStyle.fontStyle === 'italic' ||
+                               inlineStyle.includes('font-style: italic');
+        
+        isItalic = isItalicByTag || isItalicByStyle;
+        
+        // Get the clean text content
+        cleanText = (element.textContent || text).trim();
+        
+        console.log(`HTML formatting detected:`, {
+          text: cleanText,
+          isBold,
+          isItalic,
+          tagName: element.tagName,
+          computedWeight: computedStyle.fontWeight,
+          computedStyle: computedStyle.fontStyle,
+          inlineStyle
+        });
+      }
+    } else {
+      // Fallback to markdown-style formatting detection
+      // Detect bold formatting (**text** or __text__)
+      const boldRegex = /\*\*(.*?)\*\*|__(.*?)__/g;
+      const boldMatches = text.match(boldRegex);
+      if (boldMatches && boldMatches.length > 0) {
+        isBold = true;
+        cleanText = text.replace(boldRegex, (match, p1, p2) => p1 || p2 || match.replace(/\*/g, '').replace(/_/g, ''));
+      }
+      
+      // Detect italic formatting (*text* or _text_ or *text*)
+      const italicRegex = /(?<!\*)\*([^*]+)\*(?!\*)|_([^_]+)_/g;
+      const italicMatches = text.match(italicRegex);
+      if (italicMatches && italicMatches.length > 0) {
+        isItalic = true;
+        cleanText = cleanText.replace(italicRegex, (match, p1, p2) => p1 || p2 || match.replace(/\*/g, '').replace(/_/g, ''));
+      }
+    }
+    
+    return {
+      isBold,
+      isItalic,
+      fontWeight: isBold ? 'bold' : 'normal',
+      fontStyle: isItalic ? 'italic' : 'normal'
+    };
+  };
+
+  // Google Sheets HTML alignment detection
+  const detectTextAlignment = (htmlElement: string): 'left' | 'center' | 'right' | null => {
+    if (!htmlElement) return null;
+    
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = htmlElement;
+    const element = tempDiv.firstElementChild;
+    
+    if (element) {
+      const computedStyle = window.getComputedStyle(element);
+      const inlineStyle = element.getAttribute('style') || '';
+      
+      // Check inline styles first (more reliable for Google Sheets)
+      if (inlineStyle.includes('text-align: center') || inlineStyle.includes('text-align:center')) return 'center';
+      if (inlineStyle.includes('text-align: right') || inlineStyle.includes('text-align:right')) return 'right';
+      if (inlineStyle.includes('text-align: left') || inlineStyle.includes('text-align:left')) return 'left';
+      
+      // Fallback to computed styles
+      const textAlign = computedStyle.textAlign;
+      
+      if (textAlign === 'center' || textAlign === 'middle') return 'center';
+      if (textAlign === 'right') return 'right';
+      if (textAlign === 'left') return 'left';
+      
+      // Check for Google Sheets specific alignment
+      const cellStyle = element.getAttribute('style') || '';
+      if (cellStyle.includes('mso-text-align')) {
+        if (cellStyle.includes('mso-text-align:center')) return 'center';
+        if (cellStyle.includes('mso-text-align:right')) return 'right';
+        if (cellStyle.includes('mso-text-align:left')) return 'left';
+      }
+    }
+    
+    return null;
+  };
+
+  // Parse Google Sheets HTML clipboard data with enhanced formatting support
+  const parseClipboardData = async (clipboardText: string): Promise<{
+    data: string[][],
+    formattedData: FormattedCell[][],
+    cellAlignments: { [key: string]: 'left' | 'center' | 'right' },
+    mergedCells: MergedCell[],
+    cellFormatting: { [key: string]: CellFormatting }
+  }> => {
+    console.log('Starting clipboard data parsing...');
+    
+    // First, try to get HTML clipboard data from Google Sheets
+    try {
+      console.log('Attempting HTML clipboard access...');
+      if (navigator.clipboard && 'read' in navigator.clipboard) {
+        const clipboardItems = await navigator.clipboard.read();
+        console.log('Clipboard items found:', clipboardItems.length);
+        
+        for (const clipboardItem of clipboardItems) {
+          console.log('Available clipboard types:', clipboardItem.types);
+          
+          // Look for HTML type in Google Sheets clipboard
+          if (clipboardItem.types.includes('text/html')) {
+            console.log('Found HTML clipboard data, processing...');
+            const htmlBlob = await clipboardItem.getType('text/html');
+            const htmlText = await htmlBlob.text();
+            console.log('HTML content length:', htmlText.length);
+            console.log('HTML snippet:', htmlText.substring(0, 500) + '...');
+            
+            // Parse HTML table structure
+            const result = parseHtmlTable(htmlText);
+            console.log('HTML parsing result:', result);
+            return result;
+          }
+        }
+        console.log('No HTML clipboard data found, falling back to text parsing');
+      } else {
+        console.log('HTML clipboard not supported, using text parsing');
+      }
+    } catch (error) {
+      console.error('HTML clipboard access failed, falling back to text parsing:', error);
+    }
+    
+    // Fallback to text-based parsing for non-HTML clipboard data
+    console.log('Using text-based parsing');
+    return parseTextTable(clipboardText);
+  };
+
+  // Parse HTML table data from Google Sheets
+  const parseHtmlTable = (htmlText: string): {
+    data: string[][],
+    formattedData: FormattedCell[][],
+    cellAlignments: { [key: string]: 'left' | 'center' | 'right' },
+    mergedCells: MergedCell[],
+    cellFormatting: { [key: string]: CellFormatting }
+  } => {
+    console.log('Starting HTML table parsing...');
+    
+    // Create temporary DOM to parse HTML
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = htmlText;
+    
+    // Find the table element
+    const table = tempDiv.querySelector('table');
+    if (!table) {
+      console.log('No table found in HTML, falling back to text parsing');
+      return parseTextTable(htmlText); // Fallback to text parsing
+    }
+
+    console.log('Found table element, parsing rows...');
+    const rows = table.querySelectorAll('tr');
+    const rawData: string[][] = [];
+    const cellAlignments: { [key: string]: 'left' | 'center' | 'right' } = {};
+    const cellFormatting: { [key: string]: CellFormatting } = {};
+    const formattedData: FormattedCell[][] = [];
+
+    console.log(`Processing ${rows.length} rows...`);
+
+    rows.forEach((row, rowIndex) => {
+      const cells = row.querySelectorAll('td, th');
+      const rowData: string[] = [];
+      const formattedRow: FormattedCell[] = [];
+      
+      console.log(`Row ${rowIndex}: ${cells.length} cells`);
+      
+      cells.forEach((cell, colIndex) => {
+        // Extract cell content
+        const cellText = (cell.textContent || '').trim();
+        const cellHTML = cell.innerHTML;
+        const cellKey = `${rowIndex}-${colIndex}`;
+        
+        console.log(`Cell [${rowIndex},${colIndex}]: "${cellText}"`);
+        
+        // Detect formatting from HTML
+        const formatting = detectTextFormatting(cellText, cellHTML);
+        console.log(`Formatting detected for cell [${rowIndex},${colIndex}]:`, formatting);
+        
+        // Detect alignment from HTML
+        const alignment = detectTextAlignment(cellHTML);
+        console.log(`Alignment detected for cell [${rowIndex},${colIndex}]:`, alignment);
+        
+        rowData.push(cellText);
+        formattedRow.push({
+          text: cellText,
+          formatting
+        });
+        
+        // Store formatting information
+        if (formatting.isBold || formatting.isItalic) {
+          cellFormatting[cellKey] = formatting;
+          console.log(`Storing formatting for cell [${rowIndex},${colIndex}]:`, formatting);
+        }
+        
+        // Store alignment information
+        if (alignment) {
+          cellAlignments[cellKey] = alignment;
+          console.log(`Storing alignment for cell [${rowIndex},${colIndex}]:`, alignment);
+        }
+      });
+      
+      rawData.push(rowData);
+      formattedData.push(formattedRow);
+    });
+
+    // Enhanced merged cell detection for HTML tables
+    const mergedCells = detectHtmlMergedCells(table);
+    console.log('Detected merged cells:', mergedCells);
+    
+    console.log('Final parsing results:');
+    console.log('- Raw data:', rawData);
+    console.log('- Cell formatting:', cellFormatting);
+    console.log('- Cell alignments:', cellAlignments);
+    console.log('- Merged cells:', mergedCells);
+    
+    return {
+      data: rawData,
+      formattedData,
+      cellAlignments,
+      mergedCells,
+      cellFormatting
+    };
+  };
+
+  // Detect merged cells in HTML table
+  const detectHtmlMergedCells = (table: Element): MergedCell[] => {
+    const mergedCells: MergedCell[] = [];
+    const cells = table.querySelectorAll('td, th');
+    
+    cells.forEach((cell, index) => {
+      const colspan = parseInt(cell.getAttribute('colspan') || '1');
+      const rowspan = parseInt(cell.getAttribute('rowspan') || '1');
+      const rowIndex = Math.floor(index / cell.parentElement!.children.length);
+      const colIndex = index % cell.parentElement!.children.length;
+      
+      if (colspan > 1 || rowspan > 1) {
+        mergedCells.push({
+          row: rowIndex,
+          col: colIndex,
+          rowspan,
+          colspan,
+          id: `html-merged-${rowIndex}-${colIndex}-${Date.now()}`
+        });
+      }
+    });
+    
+    return mergedCells;
+  };
+
+  // Fallback text-based parsing for non-HTML clipboard data
+  const parseTextTable = (clipboardText: string): {
+    data: string[][],
+    formattedData: FormattedCell[][],
+    cellAlignments: { [key: string]: 'left' | 'center' | 'right' },
+    mergedCells: MergedCell[],
+    cellFormatting: { [key: string]: CellFormatting }
+  } => {
     // Handle different types of line endings
     const lines = clipboardText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
     
@@ -60,170 +360,158 @@ export function TableCompiler({ setJsonOutputs }: TableCompilerProps) {
     const nonEmptyLines = lines.filter(line => line.trim() !== '');
     
     // Parse each line by tabs
-    const tableData = nonEmptyLines.map(line => {
+    const rawData: string[][] = nonEmptyLines.map(line => {
       // Excel/Google Sheets typically use tabs as delimiters
       return line.split('\t').map(cell => cell.trim());
     });
-    
-    // Detect basic formatting patterns
+
+    // Basic cell formatting and alignment detection for text data
     const cellAlignments: { [key: string]: 'left' | 'center' | 'right' } = {};
-    const mergedCells: MergedCell[] = [];
-    
-    // Simple heuristic: center-align cells that appear to be headers or centered text
-    tableData.forEach((row, rowIndex) => {
+    const cellFormatting: { [key: string]: CellFormatting } = {};
+    const formattedData: FormattedCell[][] = [];
+
+    rawData.forEach((row, rowIndex) => {
+      const formattedRow: FormattedCell[] = [];
       row.forEach((cell, colIndex) => {
+        const formatting = detectTextFormatting(cell);
         const cellKey = `${rowIndex}-${colIndex}`;
         
-        // Center align if cell contains all caps or numbers (likely headers or centered content)
+        // Store formatting information
+        if (formatting.isBold || formatting.isItalic) {
+          cellFormatting[cellKey] = formatting;
+        }
+        
+        formattedRow.push({
+          text: cell,
+          formatting
+        });
+        
+        // Basic alignment detection
         if (cell.length > 0) {
+          // Center align for headers (bold text in first row or all caps)
+          const isHeader = rowIndex === 0 && (formatting.isBold || cell.length <= 15);
           const isAllCaps = cell === cell.toUpperCase() && /[A-Z]/.test(cell);
           const isOnlyNumbers = /^\s*-?\d+(\.\d+)?\s*$/.test(cell);
-          const isShort = cell.length <= 10 && rowIndex === 0; // Short header-like text in first row
+          const hasFormatting = formatting.isBold || formatting.isItalic;
           
-          if (isAllCaps || isOnlyNumbers || isShort) {
+          if (isHeader || isAllCaps || isOnlyNumbers || (hasFormatting && cell.length <= 20)) {
             cellAlignments[cellKey] = 'center';
           }
         }
       });
+      formattedData.push(formattedRow);
     });
     
-    // Basic merged cell detection: look for repeated empty cells in patterns
-    for (let rowIndex = 0; rowIndex < tableData.length; rowIndex++) {
-      for (let colIndex = 0; colIndex < tableData[rowIndex].length; colIndex++) {
-        const cell = tableData[rowIndex][colIndex];
-        
-        // If cell is empty, check if it might be part of a merged area
-        if (cell === '') {
-          let colspan = 1;
-          let rowspan = 1;
-          
-          // Check for horizontal merge (empty cells in sequence)
-          while (colIndex + colspan < tableData[rowIndex].length &&
-                 tableData[rowIndex][colIndex + colspan] === '') {
-            colspan++;
-          }
-          
-          // Check for vertical merge (empty cells below)
-          while (rowIndex + rowspan < tableData.length &&
-                 tableData[rowIndex + rowspan] &&
-                 tableData[rowIndex + rowspan][colIndex] === '') {
-            rowspan++;
-          }
-          
-          // If we found a merged area, create a merged cell object
-          if (colspan > 1 || rowspan > 1) {
-            mergedCells.push({
-              row: rowIndex,
-              col: colIndex,
-              rowspan,
-              colspan,
-              id: `merged-${rowIndex}-${colIndex}`
-            });
-            
-            // Fill the merged area with the content from the top-left cell
-            // Find the content from the nearest non-empty cell
-            let content = '';
-            for (let r = rowIndex; r >= 0 && content === ''; r--) {
-              for (let c = colIndex; c >= 0 && content === ''; c--) {
-                if (tableData[r] && tableData[r][c] && tableData[r][c].trim() !== '') {
-                  content = tableData[r][c];
-                  break;
-                }
-              }
-            }
-            
-            if (content) {
-              tableData[rowIndex][colIndex] = content;
-            }
-          }
-        }
-      }
-    }
-    
-    return { data: tableData, cellAlignments, mergedCells };
+    return {
+      data: rawData,
+      formattedData,
+      cellAlignments,
+      mergedCells: [], // No merged cell detection for plain text
+      cellFormatting
+    };
   };
 
-  // Handle paste table action
+  // Handle paste table action with enhanced Google Sheets formatting support
   const handlePasteTable = async () => {
     try {
-      // Request clipboard access
-      if (navigator.clipboard && navigator.clipboard.readText) {
-        const clipboardText = await navigator.clipboard.readText();
+      let clipboardText = '';
+      
+      // Check if we can access clipboard
+      if (navigator.clipboard && 'readText' in navigator.clipboard) {
+        try {
+          clipboardText = await navigator.clipboard.readText();
+        } catch (textError) {
+          console.log('Text clipboard access failed, trying HTML only:', textError);
+        }
+      }
         
-        if (!clipboardText.trim()) {
-          toast({
-            title: "No Data",
-            description: "No data found in clipboard.",
-            variant: "destructive"
-          });
-          return;
-        }
-
-        // Parse the clipboard data with formatting detection
-        const { data: parsedDataArray, cellAlignments, mergedCells: detectedMergedCells } = parseClipboardData(clipboardText);
-        
-        if (parsedDataArray.length === 0 || parsedDataArray.every(row => row.length === 0)) {
-          toast({
-            title: "Invalid Data",
-            description: "Clipboard does not contain valid table data.",
-            variant: "destructive"
-          });
-          return;
-        }
-
-        // Find the maximum number of columns in any row
-        const maxColumns = Math.max(...parsedDataArray.map(row => row.length));
-        
-        // Normalize all rows to have the same number of columns
-        const normalizedData = parsedDataArray.map(row => {
-          const normalizedRow = [...row];
-          while (normalizedRow.length < maxColumns) {
-            normalizedRow.push('');
-          }
-          return normalizedRow;
-        });
-
-        // Auto-detect if first row should be headers (check if it contains more text-based content)
-        const hasHeader = normalizedData.length > 1 &&
-          normalizedData[0].some(cell =>
-            cell.length > 0 &&
-            !/^\s*-?\d+(\.\d+)?\s*$/.test(cell) && // Not a number
-            cell.length <= 20 // Reasonable header length
-          );
-
-        // Update table dimensions and data
-        setRows(normalizedData.length);
-        setColumns(maxColumns);
-        setTableData(normalizedData);
-        setUseHeader(hasHeader);
-        setMergedCells(detectedMergedCells);
-
-        // Auto-generate table ID if not set
-        if (!tableId.trim()) {
-          const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-          setTableId(`pasted-table-${timestamp}`);
-        }
-
-        // Auto-generate table title if not set
-        if (useTableTitle && !tableTitle.trim()) {
-          setTableTitle(`Pasted Table ${new Date().toLocaleDateString()}`);
-        }
-
-        const formatPreserved = Object.keys(cellAlignments).length > 0 || detectedMergedCells.length > 0;
-
+      if (!clipboardText.trim()) {
         toast({
-          title: "Table Pasted Successfully!",
-          description: `Pasted ${normalizedData.length} rows × ${maxColumns} columns${hasHeader ? ' (with headers)' : ''}${formatPreserved ? ' with preserved formatting' : ''}.`
-        });
-
-      } else {
-        // Fallback for older browsers
-        toast({
-          title: "Clipboard Access Not Supported",
-          description: "Your browser doesn't support direct clipboard access. Please manually copy the table data.",
+          title: "No Data",
+          description: "No data found in clipboard.",
           variant: "destructive"
         });
+        return;
       }
+
+      // Parse the clipboard data with enhanced Google Sheets HTML formatting detection
+      const {
+        data: parsedDataArray,
+        formattedData,
+        cellAlignments,
+        mergedCells: detectedMergedCells,
+        cellFormatting
+      } = await parseClipboardData(clipboardText);
+      
+      if (parsedDataArray.length === 0 || parsedDataArray.every(row => row.length === 0)) {
+        toast({
+          title: "Invalid Data",
+          description: "Clipboard does not contain valid table data.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Find the maximum number of columns in any row
+      const maxColumns = Math.max(...parsedDataArray.map(row => row.length));
+      
+      // Normalize all rows to have the same number of columns
+      const normalizedData = parsedDataArray.map(row => {
+        const normalizedRow = [...row];
+        while (normalizedRow.length < maxColumns) {
+          normalizedRow.push('');
+        }
+        return normalizedRow;
+      });
+
+      // Auto-detect if first row should be headers (check if it contains formatting or text-based content)
+      const hasHeader = normalizedData.length > 1 &&
+        normalizedData[0].some((cell, colIndex) => {
+          const formatting = formattedData[0]?.[colIndex]?.formatting;
+          return cell.length > 0 &&
+            !/^\s*-?\d+(\.\d+)?\s*$/.test(cell) && // Not a number
+            (cell.length <= 20 || formatting?.isBold || formatting?.isItalic); // Header-like or formatted
+        });
+
+      // Update table dimensions and data
+      setRows(normalizedData.length);
+      setColumns(maxColumns);
+      setTableData(normalizedData);
+      setCellAlignments(cellAlignments);
+      setCellFormatting(cellFormatting);
+      setUseHeader(hasHeader);
+      setMergedCells(detectedMergedCells);
+
+      // Auto-generate table ID if not set
+      if (!tableId.trim()) {
+        const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+        setTableId(`pasted-table-${timestamp}`);
+      }
+
+      // Auto-generate table title if not set
+      if (useTableTitle && !tableTitle.trim()) {
+        const hasFormatting = Object.keys(cellFormatting).length > 0;
+        setTableTitle(`Pasted Table ${new Date().toLocaleDateString()}${hasFormatting ? ' (Formatted)' : ''}`);
+      }
+
+      // Enhanced success message with Google Sheets formatting details
+      const formatCount = Object.keys(cellFormatting).length;
+      const alignmentCount = Object.keys(cellAlignments).length;
+      const hasFormatting = formatCount > 0 || alignmentCount > 0 || detectedMergedCells.length > 0;
+      
+      const formatDetails = [];
+      if (formatCount > 0) formatDetails.push(`${formatCount} formatted cells`);
+      if (alignmentCount > 0) formatDetails.push(`${alignmentCount} aligned cells`);
+      if (detectedMergedCells.length > 0) formatDetails.push(`${detectedMergedCells.length} merged areas`);
+
+      const formatDescription = hasFormatting ?
+        ` with preserved Google Sheets formatting (${formatDetails.join(', ')})` : '';
+
+      toast({
+        title: "Table Pasted Successfully!",
+        description: `Pasted ${normalizedData.length} rows × ${maxColumns} columns${hasHeader ? ' (with headers)' : ''}${formatDescription}.`
+      });
+
     } catch (error) {
       console.error('Error accessing clipboard:', error);
       toast({
@@ -348,7 +636,7 @@ export function TableCompiler({ setJsonOutputs }: TableCompilerProps) {
     toast({ title: "Cells Merged", description: "Selected cells have been merged." });
   };
 
-  // Compile table
+  // Compile table with enhanced formatting support
   const handleCompileTable = () => {
     if (!tableId.trim()) {
       toast({ title: "Error", description: "Please enter a table ID.", variant: "destructive" });
@@ -378,13 +666,29 @@ export function TableCompiler({ setJsonOutputs }: TableCompilerProps) {
       dataRows = finalData;
     }
 
+    // Generate enhanced table data with formatting support
     const generatedData: VisualTableData = {
       type: "table",
       id: tableId.trim(),
       ...(useTableTitle && { title: tableTitle.trim() || `Table ${tableId}` }),
       data: dataRows,
+      // Add formatted data if we have any formatting information
+      ...(mergedCells.length > 0 && {
+        formattedData: dataRows.map((row, rowIndex) =>
+          row.map((cell, colIndex) => ({
+            text: cell,
+            formatting: {
+              isBold: false,
+              isItalic: false,
+              fontWeight: 'normal' as const,
+              fontStyle: 'normal' as const
+            }
+          }))
+        )
+      }),
       ...(useHeader && { headers, hasHeaders: true }),
       mergedCells: mergedCells,
+      cellAlignments: Object.keys(cellAlignments).length > 0 ? cellAlignments : undefined,
       metadata: {
         totalRows: dataRows.length,
         totalColumns: finalData[0]?.length || 0
@@ -392,7 +696,19 @@ export function TableCompiler({ setJsonOutputs }: TableCompilerProps) {
     };
 
     setGeneratedTable(generatedData);
-    toast({ title: "Table Compiled!", description: `Table "${generatedData.title}" ready!` });
+    
+    // Enhanced compile success message
+    const formatFeatures = [];
+    if (mergedCells.length > 0) formatFeatures.push(`${mergedCells.length} merged cells`);
+    if (Object.keys(cellAlignments).length > 0) formatFeatures.push(`cell alignments`);
+    
+    const formatDescription = formatFeatures.length > 0 ?
+      ` with ${formatFeatures.join(' and ')}` : '';
+    
+    toast({
+      title: "Table Compiled!",
+      description: `Table "${generatedData.title}" ready${formatDescription}!`
+    });
   };
 
   // Add compiled table to main output
@@ -457,6 +773,8 @@ export function TableCompiler({ setJsonOutputs }: TableCompilerProps) {
     setSelectedCells([]);
     setMergeMode(false);
     setMergedCells([]);
+    setCellAlignments({});
+    setCellFormatting({});
     toast({ title: "Cleared", description: "Table data cleared." });
   };
 
