@@ -3,7 +3,24 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 
 const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
-  ({ className, type, ...props }, ref) => {
+  ({ className, type, onClick, ...props }, ref) => {
+    const handleClick = async (e: React.MouseEvent<HTMLInputElement>) => {
+      if (!props.value && props.placeholder) {
+        try {
+          const text = await navigator.clipboard.readText();
+          if (text) {
+            const event = {
+              target: { value: text },
+            } as React.ChangeEvent<HTMLInputElement>;
+            props.onChange?.(event);
+          }
+        } catch (err) {
+          console.error("Failed to auto-paste:", err);
+        }
+      }
+      onClick?.(e);
+    };
+
     return (
       <input
         type={type}
@@ -12,6 +29,7 @@ const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
           className
         )}
         ref={ref}
+        onClick={handleClick}
         {...props}
       />
     )

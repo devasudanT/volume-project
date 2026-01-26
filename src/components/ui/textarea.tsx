@@ -1,9 +1,26 @@
 import * as React from 'react';
 
-import {cn} from '@/lib/utils';
+import { cn } from '@/lib/utils';
 
 const Textarea = React.forwardRef<HTMLTextAreaElement, React.ComponentProps<'textarea'>>(
-  ({className, ...props}, ref) => {
+  ({ className, onClick, ...props }, ref) => {
+    const handleClick = async (e: React.MouseEvent<HTMLTextAreaElement>) => {
+      if (!props.value && props.placeholder) {
+        try {
+          const text = await navigator.clipboard.readText();
+          if (text) {
+            const event = {
+              target: { value: text },
+            } as React.ChangeEvent<HTMLTextAreaElement>;
+            props.onChange?.(event);
+          }
+        } catch (err) {
+          console.error('Failed to auto-paste:', err);
+        }
+      }
+      onClick?.(e);
+    };
+
     return (
       <textarea
         className={cn(
@@ -11,6 +28,7 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, React.ComponentProps<'tex
           className
         )}
         ref={ref}
+        onClick={handleClick}
         {...props}
       />
     );
@@ -18,4 +36,4 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, React.ComponentProps<'tex
 );
 Textarea.displayName = 'Textarea';
 
-export {Textarea};
+export { Textarea };
