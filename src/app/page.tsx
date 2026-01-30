@@ -32,7 +32,7 @@ interface OldJsonEntry { // This interface might still be useful for understandi
 }
 
 interface ParagraphContentItem {
-type: 'text' | 'bold' | 'italic' | 'eng_page' | 'verse' | 'word';
+  type: 'text' | 'bold' | 'italic' | 'eng_page' | 'verse' | 'word';
   value: string;
   link?: string; // Optional link for verse references
 }
@@ -77,7 +77,7 @@ const NO_HEADING_NUMBER_VALUE = "no-prefix";
 
 export default function JsonCompilerPage() {
   const [activeComponent, setActiveComponent] = useState<string>('chapter');
-  
+
   const [selectedChapter, setSelectedChapter] = useState<string>('');
   const [headingText, setHeadingText] = useState<string>('');
   const [headingType, setHeadingType] = useState<'main' | 'sub'>('main');
@@ -249,17 +249,22 @@ export default function JsonCompilerPage() {
       if (typeof jsonString === 'string') {
         setFinalCompiledParagraphObject(compiledObject); // Set this first
         setCompiledParagraphDisplayJson(jsonString);      // Then this
+        // Auto-increment Custom ID for next paragraph
+        const currentIdNum = parseInt(customParagraphId, 10);
+        if (!isNaN(currentIdNum)) {
+          setCustomParagraphId(String(currentIdNum + 1).padStart(2, '0'));
+        }
         toast({ title: "Paragraph Compiled", description: `Paragraph "${compiledObject.id}" ready.` });
       } else {
         setFinalCompiledParagraphObject(null);
         setCompiledParagraphDisplayJson("Error: Could not generate JSON string (stringify returned non-string).");
-        toast({ title: "Compilation Error", description: "Could not generate the paragraph JSON. Check console.", variant: "destructive"});
+        toast({ title: "Compilation Error", description: "Could not generate the paragraph JSON. Check console.", variant: "destructive" });
         console.error("Error: JSON.stringify returned non-string for paragraph object:", compiledObject);
       }
     } catch (error) {
       setFinalCompiledParagraphObject(null);
       setCompiledParagraphDisplayJson("Error: Could not generate JSON string (exception).");
-      toast({ title: "Compilation Error", description: "Could not generate the paragraph JSON. Check console for details.", variant: "destructive"});
+      toast({ title: "Compilation Error", description: "Could not generate the paragraph JSON. Check console for details.", variant: "destructive" });
       console.error("Error stringifying paragraph object:", error);
     }
   };
@@ -326,7 +331,7 @@ export default function JsonCompilerPage() {
       setPoemText('');
     } catch (error) {
       console.error("Error stringifying poem object:", error);
-      toast({ title: "Compilation Error", description: "Could not generate the poem JSON. Check console.", variant: "destructive"});
+      toast({ title: "Compilation Error", description: "Could not generate the poem JSON. Check console.", variant: "destructive" });
     }
   };
 
@@ -352,7 +357,7 @@ export default function JsonCompilerPage() {
       setImageUrlInput('');
     } catch (error) {
       console.error("Error stringifying image object:", error);
-      toast({ title: "Compilation Error", description: "Could not generate the image JSON. Check console.", variant: "destructive"});
+      toast({ title: "Compilation Error", description: "Could not generate the image JSON. Check console.", variant: "destructive" });
     }
   };
 
@@ -383,10 +388,9 @@ export default function JsonCompilerPage() {
 
       setFooterPassageIdInput('');
       setFooterPassageTextInput('');
-    } catch (error)
-      {
+    } catch (error) {
       console.error("Error stringifying footer passage object:", error);
-      toast({ title: "Compilation Error", description: "Could not generate the footer passage JSON. Check console.", variant: "destructive"});
+      toast({ title: "Compilation Error", description: "Could not generate the footer passage JSON. Check console.", variant: "destructive" });
     }
   };
 
@@ -419,7 +423,7 @@ export default function JsonCompilerPage() {
       toast({ title: "Page Number Compiled", description: `Page number "${pageObject.value}" ready.` });
     } catch (error) {
       setCompiledTamilPageNumberObject(null);
-      toast({ title: "Compilation Error", description: "Could not generate the page number JSON. Check console.", variant: "destructive"});
+      toast({ title: "Compilation Error", description: "Could not generate the page number JSON. Check console.", variant: "destructive" });
       console.error("Error stringifying page object:", error);
     }
   };
