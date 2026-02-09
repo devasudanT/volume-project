@@ -11,7 +11,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { Play, Download, Copy, Trash2, PlusCircle, XCircle, Combine, ListPlus, BookText, FileImage, FileText, Upload, Undo2 } from 'lucide-react';
+import { Play, Download, Copy, Trash2, Upload, Undo2, PlusCircle, XCircle, Combine, ListPlus, BookText, FileImage, FileText } from 'lucide-react';
+import { ComponentToolbar } from "@/components/component-toolbar";
+import { ChapterInterface } from "@/components/component-interfaces/chapter-interface";
+import { HeadingInterface } from "@/components/component-interfaces/heading-interface";
+import { HintsInterface } from "@/components/component-interfaces/hints-interface";
+import { ParagraphInterface } from "@/components/component-interfaces/paragraph-interface";
+import { TamilPageInterface } from "@/components/component-interfaces/tamil-page-interface";
+import { TableCompiler } from "@/components/component-interfaces/table-interface";
+import { PoemInterface } from "@/components/component-interfaces/poem-interface";
+import { ImageInterface } from "@/components/component-interfaces/image-interface";
+import { FooterInterface } from "@/components/component-interfaces/footer-interface";
 import { TamilPageNumberCompiler } from "@/components/tamil-page-number-compiler";
 
 interface OldJsonEntry { // This interface might still be useful for understanding the structure of non-paragraph items
@@ -22,7 +32,7 @@ interface OldJsonEntry { // This interface might still be useful for understandi
 }
 
 interface ParagraphContentItem {
-type: 'text' | 'bold' | 'italic' | 'eng_page' | 'verse' | 'word';
+  type: 'text' | 'bold' | 'italic' | 'eng_page' | 'verse' | 'word';
   value: string;
   link?: string; // Optional link for verse references
 }
@@ -66,6 +76,8 @@ interface FooterPassageData {
 const NO_HEADING_NUMBER_VALUE = "no-prefix";
 
 export default function JsonCompilerPage() {
+  const [activeComponent, setActiveComponent] = useState<string>('chapter');
+
   const [selectedChapter, setSelectedChapter] = useState<string>('');
   const [headingText, setHeadingText] = useState<string>('');
   const [headingType, setHeadingType] = useState<'main' | 'sub'>('main');
@@ -77,6 +89,10 @@ export default function JsonCompilerPage() {
   const [mainHeadingCount, setMainHeadingCount] = useState<number>(0);
   const [subHeadingCount, setSubHeadingCount] = useState<number>(0);
   const [hintCount, setHintCount] = useState<number>(0);
+
+  // Tamil Page Number States
+  const [tamilPageNumberInput, setTamilPageNumberInput] = useState<string>('');
+  const [compiledTamilPageNumberObject, setCompiledTamilPageNumberObject] = useState<PageData | null>(null);
 
   // Paragraph Snippet States
   const [selectedVolume, setSelectedVolume] = useState<string>('');
@@ -233,17 +249,22 @@ export default function JsonCompilerPage() {
       if (typeof jsonString === 'string') {
         setFinalCompiledParagraphObject(compiledObject); // Set this first
         setCompiledParagraphDisplayJson(jsonString);      // Then this
+        // Auto-increment Custom ID for next paragraph
+        const currentIdNum = parseInt(customParagraphId, 10);
+        if (!isNaN(currentIdNum)) {
+          setCustomParagraphId(String(currentIdNum + 1).padStart(2, '0'));
+        }
         toast({ title: "Paragraph Compiled", description: `Paragraph "${compiledObject.id}" ready.` });
       } else {
         setFinalCompiledParagraphObject(null);
         setCompiledParagraphDisplayJson("Error: Could not generate JSON string (stringify returned non-string).");
-        toast({ title: "Compilation Error", description: "Could not generate the paragraph JSON. Check console.", variant: "destructive"});
+        toast({ title: "Compilation Error", description: "Could not generate the paragraph JSON. Check console.", variant: "destructive" });
         console.error("Error: JSON.stringify returned non-string for paragraph object:", compiledObject);
       }
     } catch (error) {
       setFinalCompiledParagraphObject(null);
       setCompiledParagraphDisplayJson("Error: Could not generate JSON string (exception).");
-      toast({ title: "Compilation Error", description: "Could not generate the paragraph JSON. Check console for details.", variant: "destructive"});
+      toast({ title: "Compilation Error", description: "Could not generate the paragraph JSON. Check console for details.", variant: "destructive" });
       console.error("Error stringifying paragraph object:", error);
     }
   };
@@ -310,7 +331,7 @@ export default function JsonCompilerPage() {
       setPoemText('');
     } catch (error) {
       console.error("Error stringifying poem object:", error);
-      toast({ title: "Compilation Error", description: "Could not generate the poem JSON. Check console.", variant: "destructive"});
+      toast({ title: "Compilation Error", description: "Could not generate the poem JSON. Check console.", variant: "destructive" });
     }
   };
 
@@ -336,7 +357,7 @@ export default function JsonCompilerPage() {
       setImageUrlInput('');
     } catch (error) {
       console.error("Error stringifying image object:", error);
-      toast({ title: "Compilation Error", description: "Could not generate the image JSON. Check console.", variant: "destructive"});
+      toast({ title: "Compilation Error", description: "Could not generate the image JSON. Check console.", variant: "destructive" });
     }
   };
 
@@ -367,11 +388,61 @@ export default function JsonCompilerPage() {
 
       setFooterPassageIdInput('');
       setFooterPassageTextInput('');
-    } catch (error)
-      {
+    } catch (error) {
       console.error("Error stringifying footer passage object:", error);
-      toast({ title: "Compilation Error", description: "Could not generate the footer passage JSON. Check console.", variant: "destructive"});
+      toast({ title: "Compilation Error", description: "Could not generate the footer passage JSON. Check console.", variant: "destructive" });
     }
+  };
+
+  // Tamil Page Number Handlers
+  const handleTamilPageNumberInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    const filteredValue = value.replace(/\D/g, '');
+    setTamilPageNumberInput(filteredValue);
+  };
+
+  const handleCompileTamilPageNumber = () => {
+    const num = parseInt(tamilPageNumberInput, 10);
+    if (!tamilPageNumberInput || isNaN(num) || num < 1 || num > 1000) {
+      toast({ title: "Error", description: "Please enter a valid page number (1-1000).", variant: "destructive" });
+      return;
+    }
+
+    const pageId = `page-${String(num).padStart(3, '0')}`;
+    const pageValue = `Page ${String(num).padStart(3, '0')}`;
+
+    const pageObject: PageData = {
+      type: "page",
+      value: pageValue,
+      id: pageId
+    };
+
+    try {
+      const jsonString = JSON.stringify(pageObject, null, 2);
+      setCompiledTamilPageNumberObject(pageObject);
+      toast({ title: "Page Number Compiled", description: `Page number "${pageObject.value}" ready.` });
+    } catch (error) {
+      setCompiledTamilPageNumberObject(null);
+      toast({ title: "Compilation Error", description: "Could not generate the page number JSON. Check console.", variant: "destructive" });
+      console.error("Error stringifying page object:", error);
+    }
+  };
+
+  const handleAddTamilPageNumberToMain = () => {
+    if (!compiledTamilPageNumberObject) {
+      toast({ title: "Error", description: "Compile a Tamil page number first.", variant: "destructive" });
+      return;
+    }
+    setJsonOutputs(prev => [...prev, JSON.stringify(compiledTamilPageNumberObject, null, 2)]);
+    toast({ title: "Tamil Page Number Added", description: `Page number "${compiledTamilPageNumberObject.value}" added to main output.` });
+    setTamilPageNumberInput('');
+    setCompiledTamilPageNumberObject(null);
+  };
+
+  const handleClearTamilPageNumber = () => {
+    setTamilPageNumberInput('');
+    setCompiledTamilPageNumberObject(null);
+    toast({ title: "Cleared", description: "Tamil Book Page Number snippet cleared." });
   };
 
 
@@ -448,6 +519,9 @@ export default function JsonCompilerPage() {
     setFooterPassageIdInput('');
     setFooterPassageTextInput('');
 
+    // Tamil Page Number states
+    setTamilPageNumberInput('');
+    setCompiledTamilPageNumberObject(null);
 
     toast({ title: "Cleared", description: "All inputs and outputs have been cleared." });
   };
@@ -576,482 +650,194 @@ export default function JsonCompilerPage() {
   });
 
   return (
-    <div className="container mx-auto p-4 md:p-8 min-h-screen flex flex-col">
-      <header className="mb-8 text-center">
-        <h1 className="text-4xl font-bold font-headline tracking-tight">Volume Project</h1>
-        <p className="text-muted-foreground mt-2">Visually compile JSON snippets and combine them.</p>
+    <div className="min-h-screen flex flex-col bg-background">
+      {/* Header */}
+      <header className="border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container mx-auto px-4 py-6">
+          <div className="text-center">
+            <h1 className="text-3xl font-bold font-headline tracking-tight">Volume Project</h1>
+            <p className="text-muted-foreground mt-1">Visually compile JSON snippets and combine them.</p>
+          </div>
+        </div>
       </header>
 
-      <main className="flex-grow grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
-        <div className="space-y-6">
-          {/* Chapter Selection Card */}
-          <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle className="font-headline">Chapter Selection</CardTitle>
-              <CardDescription>Choose a chapter to generate its JSON structure.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Select value={selectedChapter} onValueChange={setSelectedChapter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a chapter" />
-                </SelectTrigger>
-                <SelectContent>
-                  {chapterOptions.map(option => (
-                    <SelectItem key={option.idValue} value={option.idValue}>
-                      {option.displayLabel}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button onClick={handleRunChapter} className="w-full" disabled={!selectedChapter}>
-                <Play className="mr-2 h-4 w-4" /> Run Chapter
-              </Button>
-            </CardContent>
-          </Card>
+      {/* Component Toolbar */}
+      <ComponentToolbar
+        activeComponent={activeComponent}
+        onComponentChange={setActiveComponent}
+      />
 
-          {/* Heading Generation Card */}
-          <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle className="font-headline">Heading Generation</CardTitle>
-              <CardDescription>Input heading text, select type, and optionally a number.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label className="mb-1 block">Heading Type</Label>
-                  <RadioGroup
-                    defaultValue="main"
-                    value={headingType}
-                    onValueChange={(value: 'main' | 'sub') => setHeadingType(value)}
-                    className="flex space-x-4"
-                  >
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="main" id="main-heading" />
-                      <Label htmlFor="main-heading" className="font-normal">Main</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="sub" id="sub-heading" />
-                      <Label htmlFor="sub-heading" className="font-normal">Sub</Label>
-                    </div>
-                  </RadioGroup>
-                </div>
-                <div>
-                  <Label htmlFor="heading-number-select" className="mb-1 block">Heading Number (Opt.)</Label>
-                  <Select
-                    value={selectedHeadingNumber || NO_HEADING_NUMBER_VALUE}
-                    onValueChange={(value) => {
-                      setSelectedHeadingNumber(value === NO_HEADING_NUMBER_VALUE ? "" : value);
-                    }}
-                  >
-                    <SelectTrigger id="heading-number-select">
-                      <SelectValue placeholder="Select #" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={NO_HEADING_NUMBER_VALUE}>None</SelectItem>
-                      {headingNumberOptions.map(option => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+      {/* Main Content */}
+      <main className="flex-grow container mx-auto px-4 py-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Component Interface Panel */}
+          <div className="space-y-6">
+            {activeComponent === 'chapter' && (
+              <ChapterInterface
+                selectedChapter={selectedChapter}
+                setSelectedChapter={setSelectedChapter}
+                onRunChapter={handleRunChapter}
+              />
+            )}
+            {activeComponent === 'heading' && (
+              <HeadingInterface
+                headingText={headingText}
+                setHeadingText={setHeadingText}
+                headingType={headingType}
+                setHeadingType={setHeadingType}
+                selectedHeadingNumber={selectedHeadingNumber}
+                setSelectedHeadingNumber={setSelectedHeadingNumber}
+                onRunHeading={handleRunHeading}
+              />
+            )}
+            {activeComponent === 'hints' && (
+              <HintsInterface
+                hintText={hintText}
+                setHintText={setHintText}
+                onRunHints={handleRunHints}
+              />
+            )}
+            {activeComponent === 'paragraph' && (
+              <ParagraphInterface
+                selectedVolume={selectedVolume}
+                setSelectedVolume={setSelectedVolume}
+                selectedParagraphChapter={selectedParagraphChapter}
+                setSelectedParagraphChapter={setSelectedParagraphChapter}
+                customParagraphId={customParagraphId}
+                setCustomParagraphId={setCustomParagraphId}
+                plainTextInput={plainTextInput}
+                setPlainTextInput={setPlainTextInput}
+                boldTextInput={boldTextInput}
+                setBoldTextInput={setBoldTextInput}
+                italicTextInput={italicTextInput}
+                setItalicTextInput={setItalicTextInput}
+                engRefTextInput={engRefTextInput}
+                setEngRefTextInput={setEngRefTextInput}
+                verseRefTextInput={verseRefTextInput}
+                setVerseRefTextInput={setVerseRefTextInput}
+                englishWordTextInput={englishWordTextInput}
+                setEnglishWordTextInput={setEnglishWordTextInput}
+                currentParagraphSnippets={currentParagraphSnippets}
+                setCurrentParagraphSnippets={setCurrentParagraphSnippets}
+                compiledParagraphDisplayJson={compiledParagraphDisplayJson}
+                finalCompiledParagraphObject={finalCompiledParagraphObject}
+                onAddSnippet={handleAddSnippet}
+                onCompileParagraph={handleCompileParagraph}
+                onAddParagraphToMain={handleAddParagraphToMain}
+              />
+            )}
+            {activeComponent === 'tamil-page' && (
+              <TamilPageInterface
+                tamilPageNumberInput={tamilPageNumberInput}
+                setTamilPageNumberInput={setTamilPageNumberInput}
+                compiledTamilPageNumberObject={compiledTamilPageNumberObject}
+                onCompileTamilPageNumber={handleCompileTamilPageNumber}
+                onAddTamilPageNumberToMain={handleAddTamilPageNumberToMain}
+                onClearTamilPageNumber={handleClearTamilPageNumber}
+              />
+            )}
+            {activeComponent === 'table' && (
+              <TableCompiler setJsonOutputs={setJsonOutputs} />
+            )}
+            {activeComponent === 'poem' && (
+              <PoemInterface
+                poemId={poemId}
+                setPoemId={setPoemId}
+                poemTitle={poemTitle}
+                setPoemTitle={setPoemTitle}
+                poemText={poemText}
+                setPoemText={setPoemText}
+                setJsonOutputs={setJsonOutputs}
+              />
+            )}
+            {activeComponent === 'image' && (
+              <ImageInterface
+                imageUrlInput={imageUrlInput}
+                setImageUrlInput={setImageUrlInput}
+                setJsonOutputs={setJsonOutputs}
+              />
+            )}
+            {activeComponent === 'footer' && (
+              <FooterInterface
+                footerPassageIdInput={footerPassageIdInput}
+                setFooterPassageIdInput={setFooterPassageIdInput}
+                footerPassageTextInput={footerPassageTextInput}
+                setFooterPassageTextInput={setFooterPassageTextInput}
+                setJsonOutputs={setJsonOutputs}
+              />
+            )}
+          </div>
 
-              <div>
-                <Label htmlFor="heading-text">Heading Text</Label>
-                <Input
-                  id="heading-text"
-                  placeholder="Enter heading text"
-                  value={headingText}
-                  onChange={(e) => setHeadingText(e.target.value)}
-                />
-              </div>
-              <Button onClick={handleRunHeading} className="w-full" disabled={!headingText.trim()}>
-                <Play className="mr-2 h-4 w-4" /> Run Heading
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Hints Generation Card */}
-          <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle className="font-headline">Hints Generation</CardTitle>
-              <CardDescription>Input hint text to generate its JSON structure.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="hint-text">Hint Text</Label>
-                <Textarea
-                  id="hint-text"
-                  placeholder="Enter hint text"
-                  value={hintText}
-                  onChange={(e) => setHintText(e.target.value)}
-                  rows={3}
-                />
-              </div>
-              <Button onClick={handleRunHints} className="w-full" disabled={!hintText.trim()}>
-                <Play className="mr-2 h-4 w-4" /> Run Hint
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Paragraph Snippet Compiler Card */}
-          <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle className="font-headline">Paragraph Snippet Compiler</CardTitle>
-              <CardDescription>Build a paragraph JSON object from text snippets.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {(() => {
-                const paragraphFields = [
-                  {label: 'Plain Text', value: plainTextInput, setter: setPlainTextInput, type: 'text' as ParagraphContentItem['type']},
-                  {label: 'Bold Text', value: boldTextInput, setter: setBoldTextInput, type: 'bold' as ParagraphContentItem['type']},
-                  {label: 'Italic Text', value: italicTextInput, setter: setItalicTextInput, type: 'italic' as ParagraphContentItem['type']},
-                  {label: 'English Book Page Number', value: engRefTextInput, setter: setEngRefTextInput, type: 'eng_page' as ParagraphContentItem['type']},
-                  {label: 'Verse Reference', value: verseRefTextInput, setter: setVerseRefTextInput, type: 'verse' as ParagraphContentItem['type']},
-                  {label: 'English Word', value: englishWordTextInput, setter: setEnglishWordTextInput, type: 'word' as ParagraphContentItem['type']},
-                ];
-
-                const plainTextField = paragraphFields.find(field => field.type === 'text');
-                const otherFields = paragraphFields.filter(field => field.type !== 'text');
-
-                return (
-                  <>
-                    {plainTextField && (
-                      <div key={plainTextField.type} className="space-y-2">
-                        <Label htmlFor={`snippet-${plainTextField.type}`}>{plainTextField.label}</Label>
-                        <div className="flex items-center gap-2">
-                          <Textarea
-                            id={`snippet-${plainTextField.type}`}
-                            placeholder={`Enter ${plainTextField.label.toLowerCase()}`}
-                            value={plainTextField.value}
-                            onChange={(e) => plainTextField.setter(e.target.value)}
-                            rows={6} // Increased height for plain text
-                          />
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={() => handleAddSnippet(plainTextField.type, plainTextField.value, () => plainTextField.setter(''))}
-                            disabled={!plainTextField.value.trim()}
-                            aria-label={`Add ${plainTextField.label}`}
-                          >
-                            <PlusCircle className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => plainTextField.setter('')}
-                            disabled={!plainTextField.value.trim()}
-                            aria-label={`Clear ${plainTextField.label}`}
-                          >
-                            <XCircle className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {otherFields.map(field => (
-                        <div key={field.type} className="space-y-2">
-                          <Label htmlFor={`snippet-${field.type}`}>{field.label}</Label>
-                          <div className="flex items-center gap-2">
-                              <Input
-                                id={`snippet-${field.type}`}
-                                placeholder={`Enter ${field.label.toLowerCase()}`}
-                                value={field.value}
-                                onChange={(e) => field.setter(e.target.value)}
-                              />
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              onClick={() => handleAddSnippet(field.type, field.value, () => field.setter(''), field.type === 'verse' ? `#` : undefined)}
-                              disabled={!field.value.trim()}
-                              aria-label={`Add ${field.label}`}
-                            >
-                              <PlusCircle className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => field.setter('')}
-                              disabled={!field.value.trim()}
-                              aria-label={`Clear ${field.label}`}
-                            >
-                              <XCircle className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                );
-              })()}
-
-              <div className="pt-2 space-y-2">
-                 <div className="flex justify-between items-center">
-                   <Label>Current Snippets for Paragraph:</Label>
-                   <Button
-                     variant="ghost"
-                     size="sm"
-                     onClick={() => setCurrentParagraphSnippets([])}
-                     disabled={currentParagraphSnippets.length === 0}
-                   >
-                     Clear All
-                   </Button>
-                 </div>
-                 <ScrollArea className="h-24 w-full rounded-md border p-2 bg-secondary/20">
-                    {currentParagraphSnippets.length > 0 ? (
-                        currentParagraphSnippets.map((snippet, index) => (
-                            <div key={index} className="text-xs p-1 bg-background my-1 rounded border border-input">
-                                <strong>{snippet.type}:</strong> {snippet.value}
-                            </div>
-                        ))
-                    ) : (
-                        <p className="text-xs text-muted-foreground">No snippets added yet.</p>
-                    )}
-                 </ScrollArea>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2 items-end">
-                <div>
-                  <Label htmlFor="volume-select">Volume</Label>
-                  <Select value={selectedVolume} onValueChange={setSelectedVolume}>
-                    <SelectTrigger id="volume-select">
-                      <SelectValue placeholder="Select Volume" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {volumeOptions.map(option => (
-                        <SelectItem key={option.idValue} value={option.idValue}>
-                          {option.displayLabel}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="paragraph-chapter-select">Chapter</Label>
-                  <Select value={selectedParagraphChapter} onValueChange={setSelectedParagraphChapter}>
-                    <SelectTrigger id="paragraph-chapter-select">
-                      <SelectValue placeholder="Select Chapter" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {chapterOptions.map(option => (
-                        <SelectItem key={option.idValue} value={option.idValue}>
-                          {option.displayLabel}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="custom-paragraph-id">Custom ID</Label>
-                  <Input
-                    id="custom-paragraph-id"
-                    placeholder="e.g., 1 (becomes 001)"
-                    value={customParagraphId}
-                    onChange={(e) => setCustomParagraphId(e.target.value)}
-                    maxLength={3} // Max 3 digits for input
-                  />
-                </div>
-              </div>
-
-              <Button onClick={handleCompileParagraph} className="w-full" disabled={!selectedVolume || !selectedParagraphChapter || !customParagraphId.trim() || currentParagraphSnippets.length === 0}>
-                <Combine className="mr-2 h-4 w-4" /> Compile Code
-              </Button>
-
-              <div>
-                <Label htmlFor="compiled-paragraph-output">Paragraph Final Compiled Code</Label>
-                <Textarea
-                  id="compiled-paragraph-output"
-                  readOnly
-                  value={compiledParagraphDisplayJson || "Compile to see output..."}
-                  rows={5}
-                  className="bg-secondary/30"
-                />
-              </div>
-              <Button onClick={handleAddParagraphToMain} className="w-full" disabled={!finalCompiledParagraphObject}>
-                <ListPlus className="mr-2 h-4 w-4" /> Add to Main Output
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Tamil Book Page Number Snippet Compiler Card */}
-          <TamilPageNumberCompiler setJsonOutputs={setJsonOutputs} />
-
-          {/* Poem Snippet Compiler Card */}
-          <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle className="font-headline flex items-center">
-                <BookText className="mr-2 h-5 w-5" />
-                JSON Poem Snippet Compiler
-              </CardTitle>
-              <CardDescription>Enter poem ID, title, and text to generate its JSON structure.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="poem-id-input">Poem ID</Label>
-                <Input
-                  id="poem-id-input"
-                  placeholder="Enter poem ID (e.g., poem-001)"
-                  value={poemId}
-                  onChange={(e) => setPoemId(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label htmlFor="poem-title-input">Poem Title</Label>
-                <Input
-                  id="poem-title-input"
-                  placeholder="Enter poem title"
-                  value={poemTitle}
-                  onChange={(e) => setPoemTitle(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label htmlFor="poem-text-input">Poem Text</Label>
-                <Textarea
-                  id="poem-text-input"
-                  placeholder="Enter poem text, each line on a new line..."
-                  value={poemText}
-                  onChange={(e) => setPoemText(e.target.value)}
-                  rows={6}
-                />
-              </div>
-              <Button onClick={handleAddPoemToMain} className="w-full" disabled={!poemId.trim() || !poemTitle.trim() || !poemText.trim()}>
-                <ListPlus className="mr-2 h-4 w-4" /> Add Poem to Main Output
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Image Snippet Compiler Card */}
-          <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle className="font-headline flex items-center">
-                <FileImage className="mr-2 h-5 w-5" />
-                Image Snippet Compiler
-              </CardTitle>
-              <CardDescription>Enter image URL to generate the JSON snippet.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="image-url-input">Image URL</Label>
-                <Input
-                  id="image-url-input"
-                  placeholder="Image URL (e.g., https://example.com/image.jpg)"
-                  value={imageUrlInput}
-                  onChange={(e) => setImageUrlInput(e.target.value)}
-                />
-              </div>
-              <Button onClick={handleAddImageToMain} className="w-full" disabled={!imageUrlInput.trim()}>
-                <ListPlus className="mr-2 h-4 w-4" /> Add to Main Output
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Footer Passage Snippet Compiler Card */}
-          <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle className="font-headline flex items-center">
-                <FileText className="mr-2 h-5 w-5" />
-                Footer Passage Snippet Compiler
-              </CardTitle>
-              <CardDescription>Enter footer passage ID and text to generate its JSON structure.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="footer-passage-id-input">Footer Passage ID</Label>
-                <Input
-                  id="footer-passage-id-input"
-                  placeholder="Enter footer passage ID (e.g., footer-passage-1)"
-                  value={footerPassageIdInput}
-                  onChange={(e) => setFooterPassageIdInput(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label htmlFor="footer-passage-text-input">Footer Passage Text</Label>
-                <Textarea
-                  id="footer-passage-text-input"
-                  placeholder="Enter footer passage text..."
-                  value={footerPassageTextInput}
-                  onChange={(e) => setFooterPassageTextInput(e.target.value)}
-                  rows={4}
-                />
-              </div>
-              <Button onClick={handleAddFooterPassageToMain} className="w-full" disabled={!footerPassageIdInput.trim() || !footerPassageTextInput.trim()}>
-                <ListPlus className="mr-2 h-4 w-4" /> Add to Main Output
-              </Button>
-            </CardContent>
-          </Card>
-
-        </div>
-
-        {/* JSON Output Display Card */}
-        <div className="sticky top-8">
-          <Card className="shadow-lg flex flex-col max-h-[calc(100vh-8rem)] h-full overflow-hidden">
-            <CardHeader>
-              <CardTitle className="font-headline flex items-center justify-between">
-                <span>JSON Output</span>
-                <div className="flex items-center gap-2">
-                  <Input
-                    id="json-upload"
-                    type="file"
-                    accept=".json"
-                    onChange={handleFileUpload}
-                    className="hidden"
-                  />
-                  <Label htmlFor="json-upload" className="cursor-pointer">
-                    <Button asChild variant="outline" size="sm">
-                      <span><Upload className="mr-2 h-4 w-4" /> Upload JSON</span>
-                    </Button>
-                  </Label>
-                </div>
-              </CardTitle>
-              <CardDescription>Generated JSON objects will appear here in order.</CardDescription>
-            </CardHeader>
-            <CardContent className="p-6 pt-0 flex-1 min-h-0 flex flex-col">
-              <ScrollArea className="relative w-full rounded-md border p-4 bg-secondary/30 flex-1 min-h-0 overflow-y-auto">
-                <pre className="text-sm whitespace-pre-wrap break-all">
-                  {displayedJson}
-                </pre>
-              </ScrollArea>
-            </CardContent>
-            <CardFooter className="flex flex-col sm:flex-row gap-2 pt-4">
-              <Button onClick={handleDownloadJson} variant="outline" className="flex-1" disabled={jsonOutputs.length === 0}>
-                <Download className="mr-2 h-4 w-4" /> Download JSON
-              </Button>
-              <Button onClick={handleCopyJson} variant="outline" className="flex-1" disabled={jsonOutputs.length === 0}>
-                <Copy className="mr-2 h-4 w-4" /> Copy Code
-              </Button>
-              <Button onClick={handleUndo} variant="outline" className="flex-1" disabled={jsonOutputs.length === 0}>
-                <Undo2 className="mr-2 h-4 w-4" /> Undo
-              </Button>
-              <Button
-                onClick={handleClearAll}
-                variant="destructive"
-                className="flex-1"
-                disabled={
-                  jsonOutputs.length === 0 &&
-                  !selectedChapter &&
-                  !headingText &&
-                  !hintText &&
-                  !selectedHeadingNumber &&
-                  !selectedVolume &&
-                  !selectedParagraphChapter &&
-                  !customParagraphId &&
-                  currentParagraphSnippets.length === 0 &&
-                  !finalCompiledParagraphObject &&
-                  !poemId &&
-                  !poemTitle &&
-                  !poemText &&
-                  !imageUrlInput &&
-                  !footerPassageIdInput &&
-                  !footerPassageTextInput
-                }
-              >
-                <Trash2 className="mr-2 h-4 w-4" /> Clear All
-              </Button>
-            </CardFooter>
-          </Card>
+          {/* JSON Output Display Panel */}
+          <div className="sticky top-6">
+            <Card className="shadow-lg flex flex-col max-h-[calc(100vh-12rem)] h-full overflow-hidden">
+              <CardHeader>
+                <CardTitle className="font-headline flex items-center justify-between">
+                  <span>JSON Output</span>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="json-upload"
+                      type="file"
+                      accept=".json"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                    />
+                    <Label htmlFor="json-upload" className="cursor-pointer">
+                      <Button asChild variant="outline" size="sm">
+                        <span><Upload className="mr-2 h-4 w-4" /> Upload JSON</span>
+                      </Button>
+                    </Label>
+                  </div>
+                </CardTitle>
+                <CardDescription>Generated JSON objects will appear here in order.</CardDescription>
+              </CardHeader>
+              <CardContent className="p-6 pt-0 flex-1 min-h-0 flex flex-col">
+                <ScrollArea className="relative w-full rounded-md border p-4 bg-secondary/30 flex-1 min-h-0 overflow-y-auto">
+                  <pre className="text-sm whitespace-pre-wrap break-all">
+                    {displayedJson}
+                  </pre>
+                </ScrollArea>
+              </CardContent>
+              <CardFooter className="flex flex-col sm:flex-row gap-2 pt-4">
+                <Button onClick={handleDownloadJson} variant="outline" className="flex-1" disabled={jsonOutputs.length === 0}>
+                  <Download className="mr-2 h-4 w-4" /> Download JSON
+                </Button>
+                <Button onClick={handleCopyJson} variant="outline" className="flex-1" disabled={jsonOutputs.length === 0}>
+                  <Copy className="mr-2 h-4 w-4" /> Copy Code
+                </Button>
+                <Button onClick={handleUndo} variant="outline" className="flex-1" disabled={jsonOutputs.length === 0}>
+                  <Undo2 className="mr-2 h-4 w-4" /> Undo
+                </Button>
+                <Button
+                  onClick={handleClearAll}
+                  variant="destructive"
+                  className="flex-1"
+                  disabled={
+                    jsonOutputs.length === 0 &&
+                    !selectedChapter &&
+                    !headingText &&
+                    !hintText &&
+                    !selectedHeadingNumber &&
+                    !selectedVolume &&
+                    !selectedParagraphChapter &&
+                    !customParagraphId &&
+                    currentParagraphSnippets.length === 0 &&
+                    !finalCompiledParagraphObject &&
+                    !poemId &&
+                    !poemTitle &&
+                    !poemText &&
+                    !imageUrlInput &&
+                    !footerPassageIdInput &&
+                    !footerPassageTextInput &&
+                    !tamilPageNumberInput &&
+                    !compiledTamilPageNumberObject
+                  }
+                >
+                  <Trash2 className="mr-2 h-4 w-4" /> Clear All
+                </Button>
+              </CardFooter>
+            </Card>
+          </div>
         </div>
       </main>
     </div>
